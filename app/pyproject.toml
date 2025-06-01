@@ -1,26 +1,19 @@
-[project]
+[tool.poetry]
 name = "app"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "y00njaekim",email = "rladbswo12@gm.gist.ac.kr"}
-]
-requires-python = "~3.12"
-dependencies = [
-    "langchain==0.3.25",
-    "flask>=3.1.1,<4.0.0",
-    "langchain-openai>=0.3.18,<0.4.0",
-    "dotenv>=0.9.9,<0.10.0",
-    "flask-cors>=6.0.0,<7.0.0",
-    "librosa (>=0.11.0,<0.12.0)",
-    "musicai-sdk (>=1.0.2,<2.0.0)"
-]
-
-[tool.poetry]
+authors = ["y00njaekim <rladbswo12@gm.gist.ac.kr>"]
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "~3.12"
+langchain = "==0.3.25"
+flask = ">=3.1.1,<4.0.0"
+langchain-openai = ">=0.3.18,<0.4.0"
+dotenv = ">=0.9.9,<0.10.0"
+flask-cors = ">=6.0.0,<7.0.0"
+librosa = ">=0.11.0,<0.12.0"
+musicai-sdk = ">=1.0.2,<2.0.0"
 madmom = {path = "../external_libs/madmom", develop = true}
 
 [build-system]
