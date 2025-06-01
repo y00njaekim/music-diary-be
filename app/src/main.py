@@ -33,6 +33,7 @@ openai_api_key=api_key  # 환경변수 설정 가능
 chatbot_states = {}
 
 
+
 @app.route('/analysis', methods=['POST'])
 def analyze_music():
     try:
@@ -436,6 +437,23 @@ def save_chat():
 
     print('---save---')
     return jsonify([{"user_name":user_name,"history":chat_history}])
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        current_time = datetime.datetime.now().isoformat()
+        return jsonify({
+            "status": "healthy",
+            "timestamp": current_time,
+            "service": "music-diary-backend",
+            "version": "1.0.0"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.datetime.now().isoformat()
+        }), 500
 
         
 if __name__ == '__main__':
