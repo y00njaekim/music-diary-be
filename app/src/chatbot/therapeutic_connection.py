@@ -40,7 +40,7 @@ class OutputFormat(BaseModel):
     motivation: Optional[str] = Field(default=None, description="What the user hopes to gain through music therapy")
 
 
-def therapeutic_connection(user_input, llm, memory, var_dict, bot_question) -> str:
+def therapeutic_connection(user_input, llm, memory) -> str:
 
     # 1. 질문 + few-shot
     therapeutic_connection_question = """

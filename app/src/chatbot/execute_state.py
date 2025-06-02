@@ -7,6 +7,7 @@ from .music_discussion import music_discussion
 
 from typing import TypedDict, Tuple, Union
 from langchain_core.memory import BaseMemory
+import json
 
 llm = ChatOpenAI(model="gpt-4.1", temperature=0)
 
@@ -50,7 +51,7 @@ class MusicDiscussionSlot(TypedDict):
 
 
 class CombinedSlot(TypedDict, total=False):
-    # therpeutic_connection
+    # therapeutic_connection
     name: str
     therapy_difficulty: str
     difficulty: str
@@ -86,7 +87,7 @@ def execute_state(
     flag = 0
 
     # state지정
-    if state == "therpeutic_connection":
+    if state == "therapeutic_connection":
         func = therapeutic_connection
     elif state == "extraction_source":
         func = extraction_source
@@ -103,7 +104,7 @@ def execute_state(
         print(response)
 
     else:
-        response, state_slot = func(slot, llm, memory)
+        response, state_slot = func(json.dumps(slot, ensure_ascii=False), llm, memory)
         print(response)
 
     # slot 다 채웠는지 확인

@@ -30,7 +30,7 @@ class OutputFormat(BaseModel):
     feeling: Optional[str] = Field(default=None, description="Feelings after experiencing the music-making activity")
 
 
-def music_discussion(user_input, llm, memory, var_dict, bot_question):
+def music_discussion(user_input, llm, memory):
     extraction_source_question = f"""
     [Music Opinion Task]
     - 만든 음악의 특정 부분에 대해서 이야기를 나누는 과정

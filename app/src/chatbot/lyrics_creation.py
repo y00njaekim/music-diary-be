@@ -31,7 +31,7 @@ class OutputFormat(BaseModel):
     lyrics_content: Optional[str] = Field(default=None, description="Detailed sentences the user wants to include in the lyrics")
 
 
-def extraction_source(user_input, llm, memory, var_dict, bot_question):
+def extraction_source(user_input, llm, memory):
     extraction_source_question = f"""
     [Making Concept Task]
     - 노래 가사에 대한 주제를 정합니다.
@@ -116,7 +116,7 @@ class LyricsOutput(BaseModel):
     lyrics: Optional[str] = Field(default=None, description="AI-generated lyrics")
 
 
-def making_lyrics(user_input, llm, memory, var_dict):
+def making_lyrics(user_input, llm, memory):
     making_lyrics_prompt = f"""
     [Lyrics Generative Task]
     - slot을 바탕으로 가사를 생성합니다.

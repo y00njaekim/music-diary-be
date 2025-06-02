@@ -31,7 +31,7 @@ class OutputFormat(BaseModel):
     tempo: Optional[str] = Field(default=None, description="The tempo or speed of the music")
 
 
-def music_making(user_input, llm, memory, var_dict, bot_question):
+def music_making(user_input, llm, memory):
     extraction_source_question = f"""
     가사는 수정하지 않습니다. 
     [Music Preference Task]
