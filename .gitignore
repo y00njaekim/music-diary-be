@@ -9,5 +9,6 @@
 */**/*.pyzwz
 
 */**/__pycache__/
+*/**/.DS_Store
 
 external_libs/
