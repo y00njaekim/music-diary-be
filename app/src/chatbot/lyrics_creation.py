@@ -107,7 +107,7 @@ def extraction_source(user_input, llm, memory):
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
     slot = structured_llm.invoke(slot_prompt.invoke({"history": history}))
 
-    return question, slot, history
+    return question, slot
 
 
 class LyricsOutput(BaseModel):

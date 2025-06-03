@@ -9,10 +9,11 @@ import requests
 import datetime
 from langchain.memory import ConversationSummaryMemory  # ConversationSummaryMemory(llm=llm, memory_key="history")
 from langchain_openai import ChatOpenAI
-from chatbot.execute_state import execute_state
+from chatbot.execute_state import execute_state, State, STATE_NEXT
 import jwt
 from functools import wraps
 import logging
+from llm_instance import llm
 
 app = Flask(__name__)
 CORS(
@@ -29,8 +30,6 @@ CORS(
     supports_credentials=True,
 )
 
-# LLM 초기화
-llm = ChatOpenAI(model="gpt-4", temperature=0)
 
 # 사용자별 메모리 저장소
 user_memories = {}
@@ -169,7 +168,7 @@ def generate_response():
             slot["name"] = str(user_name)
 
         # 필수 파라미터 검증
-        if not user_input:
+        if turn != 0 and not user_input:
             raise ValueError("input이 필요합니다")
         if not state:
             raise ValueError("state가 필요합니다")
@@ -183,9 +182,18 @@ def generate_response():
 
         memory = user_memories[user_id]
 
+        if turn == 0:
+            memory.clear()
+
         print(f"slot: {slot}")
         # execute_state 함수 실행
-        response, flag, updated_slot = execute_state(user_input=user_input, state=state, turn=turn, slot=slot, memory=memory)
+        try:
+            state_enum = State(state)
+        except ValueError:
+            # 잘못된 state 값이 들어온 경우 에러 처리
+            raise ValueError(f"알 수 없는 state 값입니다: {state}")
+
+        response, flag, updated_slot = execute_state(user_input=user_input, state=state_enum, turn=turn, slot=slot, memory=memory)
 
         # 대화 컨텍스트를 메모리에 저장 (save_context 메서드 사용)
         # 이렇게 하면 자동으로 요약이 업데이트됩니다
@@ -199,6 +207,46 @@ def generate_response():
 
         print(f"응답 생성 완료 - turn: {next_turn}, flag: {flag}")
 
+        return jsonify(response_data), 200
+
+    except ValueError as ve:
+        error_message = {"error": str(ve)}
+        print(f"ValueError: {str(ve)}")
+        return jsonify(error_message), 400
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
+@app.route("/next_state", methods=["POST"])
+@verify_jwt
+def next_state():
+    try:
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 현재 state만 추출
+        state_str = post_data.get("state")
+
+        if not state_str:
+            raise ValueError("state가 필요합니다")
+
+        # Enum 변환 및 다음 state 계산
+        try:
+            current_state = State(state_str)
+        except ValueError:
+            raise ValueError(f"알 수 없는 state: {state_str}")
+
+        next_state_enum = STATE_NEXT.get(current_state)
+        next_state_str = next_state_enum.value if next_state_enum else None
+
+        response_data = {"state": next_state_str, "turn": 0}
         return jsonify(response_data), 200
 
     except ValueError as ve:
