@@ -20,7 +20,7 @@ CORS(
     app,
     resources={
         r"/*": {
-            "origins": ["http://localhost:3000", "https://your-production-domain.com"],
+            "origins": ["http://localhost:3000", "https://music-diary-fe.vercel.app/"],
             "methods": ["GET", "POST", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "expose_headers": ["Authorization"],
