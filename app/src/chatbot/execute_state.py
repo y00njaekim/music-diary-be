@@ -1,7 +1,7 @@
 from llm_instance import llm
 from .therapeutic_connection import therapeutic_connection
 from .lyrics_creation import extraction_source, making_lyrics
-from .music_creation import music_making
+from .music_creation import music_making, music_creation
 from .music_discussion import music_discussion
 
 
@@ -85,6 +85,7 @@ class State(Enum):
     EXTRACTION_SOURCE = "extraction_source"
     MAKING_LYRICS = "making_lyrics"
     MUSIC_MAKING = "music_making"
+    MUSIC_CREATION = "music_creation"
     MUSIC_DISCUSSION = "music_discussion"
 
 
@@ -92,7 +93,8 @@ STATE_NEXT = {
     State.THERAPEUTIC_CONNECTION: State.EXTRACTION_SOURCE,
     State.EXTRACTION_SOURCE: State.MAKING_LYRICS,
     State.MAKING_LYRICS: State.MUSIC_MAKING,
-    State.MUSIC_MAKING: State.MUSIC_DISCUSSION,
+    State.MUSIC_MAKING: State.MUSIC_CREATION,
+    State.MUSIC_CREATION: State.MUSIC_DISCUSSION,
     State.MUSIC_DISCUSSION: None,  # 마지막 상태
 }
 
@@ -111,17 +113,18 @@ def execute_state(
         func = making_lyrics
     elif state == State.MUSIC_MAKING:
         func = music_making
+    elif state == State.MUSIC_CREATION:
+        func = music_creation
     elif state == State.MUSIC_DISCUSSION:
         func = music_discussion
 
     # 답변 생성
-    if turn != 0:
-        response, state_slot = func(user_input, llm, memory)
-        print(response)
-
-    else:
+    if turn == 0:
         response, state_slot = func(json.dumps(slot, ensure_ascii=False), llm, memory)
-        print(response)
+        # print(response)
+    else:
+        response, state_slot = func(user_input, llm, memory)
+        # print(response)
 
     # slot 다 채웠는지 확인
     none_fields = {k: v for k, v in state_slot.model_dump().items() if v is None}
@@ -138,7 +141,11 @@ def execute_state(
         flag = 1
         return response, flag, state_slot.model_dump()
 
-    if turn > 5:
+    if state == State.MUSIC_CREATION:
+        flag = 1
+        return response, flag, state_slot.model_dump()
+
+    if turn > 1:
         print("over the 5 turn")
         flag = 1
         return response, flag, state_slot.model_dump()

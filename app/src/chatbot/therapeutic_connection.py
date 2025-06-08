@@ -125,7 +125,7 @@ def therapeutic_connection(user_input, llm, memory) -> str:
 
     memory.save_context({"input": user_input}, {"output": question})
 
-    print_memory_summary(memory)
+    # print_memory_summary(memory)
     # print("---")
     # print("조건 ", bot_question)
     # print("CoVe Q: ", question)

@@ -77,6 +77,16 @@ def verify_jwt(f):
 @app.route("/analysis", methods=["POST"])
 @verify_jwt
 def analyze_music():
+    # TODO: 임시 구현 - result.json 파일을 그대로 반환합니다.
+    # try:
+    #     with open("src/analyzer/a.json", "r", encoding="utf-8") as f:
+    #         result = json.load(f)
+    #     return jsonify(result), 200
+    # except Exception as e:
+    #     error_message = {"error": str(e), "traceback": traceback.format_exc()}
+    #     print(json.dumps(error_message, indent=4))
+    #     return jsonify(error_message), 500
+
     try:
         post_data = request.get_json()
         if post_data is None:
@@ -145,7 +155,7 @@ def generate_response():
     try:
         # 쿼리 파라미터에서 sid 추출 및 출력
         sid = request.args.get("sid")
-        print(f"[generate_response] sid: {sid}")
+        # print(f"[generate_response] sid: {sid}")
         # POST 데이터 가져오기
         post_data = request.get_json()
         if post_data is None:
@@ -173,7 +183,7 @@ def generate_response():
         if not state:
             raise ValueError("state가 필요합니다")
 
-        print(f"요청 받음 - user_id: {user_id}, user_name: {user_name}, state: {state}, turn: {turn}")
+        # print(f"요청 받음 - user_id: {user_id}, user_name: {user_name}, state: {state}, turn: {turn}")
 
         # 사용자별 메모리 가져오기 또는 생성
         if user_id not in user_memories:

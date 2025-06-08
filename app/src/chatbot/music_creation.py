@@ -2,9 +2,20 @@ from langchain.prompts import PromptTemplate
 from .prefix import question_prefix_prompt, slot_prefix_prompt
 from pydantic import BaseModel, Field
 from typing import Optional
-
+import os
+import requests
+import time
+from dotenv import load_dotenv
+import json
 
 from langchain_core.output_parsers import StrOutputParser
+
+# .env 파일에서 환경 변수 로드
+load_dotenv()
+
+# Mureka API 엔드포인트 및 API 키 설정
+mureka_api_endpoint = "https://api.mureka.ai"
+mureka_api_key = os.getenv("MUREKA_API_KEY")
 
 
 def print_memory_summary(memory):
@@ -108,6 +119,117 @@ def music_making(user_input, llm, memory):
     return question, slot
 
 
-def music_creation(user_input):
+def query_mureka_task(id: str):
+    """지정된 ID의 작업 상태를 Mureka API에 조회합니다."""
+    headers = {
+        "Authorization": f"Bearer {mureka_api_key}",
+    }
+    response = requests.get(mureka_api_endpoint + f"/v1/song/query/{id}", headers=headers)
+    response.raise_for_status()
+    return response.json()
 
-    return "[music_creation 단계입니다.]"
+
+def generate_mureka_song_and_wait(title: str, lyrics: str, music_component: str) -> str:
+    """
+    Mureka API에 노래 생성을 요청하고, 작업이 완료될 때까지 대기한 후
+    오디오 URL을 반환합니다.
+    """
+    print(f"제목: {title}")
+    print(f"음악 스타일: {music_component}")
+
+    # 1. 노래 생성 요청 (POST)
+    headers = {"Authorization": f"Bearer {mureka_api_key}", "Content-Type": "application/json"}
+    payload = {
+        "lyrics": lyrics,
+        "model": "auto",
+        "prompt": music_component,
+    }
+
+    try:
+        response = requests.post(mureka_api_endpoint + "/v1/song/generate", headers=headers, json=payload, timeout=(5, 60))
+        response.raise_for_status()
+
+        res_data = response.json()
+        task_id = res_data.get("id")
+        print(f"노래 생성 작업 시작. 작업 ID: {task_id}")
+
+        # 2. 작업 완료까지 대기 (while 루프)
+        retry_delay = 5  # 5초마다 상태 확인
+        max_retries = 100  # 최대 100번 시도 (약 8분)
+        retry_count = 0
+
+        while retry_count < max_retries:
+            task_status_response = query_mureka_task(task_id)
+            status = task_status_response.get("status")
+
+            if status == "succeeded":
+                audio_url = task_status_response["choices"][0]["url"]
+                print(f"노래 생성 성공! 오디오 URL: {audio_url}")
+                return audio_url
+            elif status == "failed":
+                print(f"작업 실패: {task_status_response}")
+                return "Task failed"
+            else:
+                # 상태가 'processing' 이거나 다른 상태일 경우
+                print(f"작업 진행 중... (상태: {status}). {retry_delay}초 후 다시 시도합니다.")
+                time.sleep(retry_delay)
+                retry_count += 1
+
+        print("최대 시도 횟수를 초과했습니다. 작업 시간 초과.")
+        return "Task timed out"
+
+    except requests.exceptions.RequestException as e:
+        print(f"API 요청 중 오류 발생: {e}")
+        return f"API Error: {e}"
+
+
+def music_creation(user_input, llm, memory):
+    """
+    CombinedSlot(dict) 타입의 user_input에서 가사와 음악 스타일 정보를 추출하여
+    Mureka API로 음악을 생성하고, 오디오 URL을 반환합니다.
+    """
+    # user_input이 문자열이면 딕셔너리로 파싱
+    if isinstance(user_input, str):
+        user_input_dict = json.loads(user_input)
+    # 1. 가사 추출
+    lyrics = user_input_dict.get("lyrics", None)
+    if not lyrics:
+        response = "가사가 입력되지 않았습니다."
+        # history 저장 및 slot 생성
+        memory_vars = memory.load_memory_variables({})
+        history = memory_vars.get("history", "")
+        structured_llm = llm.with_structured_output(schema=OutputFormat)
+        slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
+        slot = structured_llm.invoke(slot_prompt.invoke({"history": history}))
+        return response, slot
+
+    # 2. 음악 스타일 프롬프트 생성
+    style_elements = []
+    for key in ["genre", "instrument", "mood", "vocal", "tempo"]:
+        value = user_input_dict.get(key, None)
+        if value:
+            style_elements.append(f"{key}: {value}")
+    music_component = ", ".join(style_elements) if style_elements else "기본 스타일"
+
+    # 3. 제목 추출 (없으면 'Untitled Song')
+    title = user_input_dict.get("name", "Untitled Song")
+
+    # 4. Mureka API 호출 및 결과 반환
+    audio_url = generate_mureka_song_and_wait(title, lyrics, music_component)
+
+    if audio_url.startswith("http"):
+        response = f"노래가 성공적으로 생성되었습니다!\n오디오 파일: {audio_url}"
+    else:
+        response = f"노래 생성에 실패했습니다: {audio_url}"
+
+    # history 저장
+    memory.save_context({"input": user_input}, {"output": response})
+    memory_vars = memory.load_memory_variables({})
+    history = memory_vars.get("history", "")
+
+    # structured LLM으로 slot 생성
+    structured_llm = llm.with_structured_output(schema=OutputFormat)
+    slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
+    slot = structured_llm.invoke(slot_prompt.invoke({"history": history}))
+
+    return response, slot
