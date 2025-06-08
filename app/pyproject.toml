@@ -13,7 +13,7 @@ langchain-openai = ">=0.3.18,<0.4.0"
 dotenv = ">=0.9.9,<0.10.0"
 flask-cors = ">=6.0.0,<7.0.0"
 librosa = ">=0.11.0,<0.12.0"
-musicai-sdk = ">=1.0.2,<2.0.0"
+musicai-sdk = "==0.4.1"
 madmom = {path = "../external_libs/madmom", develop = true}
 pyjwt = "^2.10.1"
 

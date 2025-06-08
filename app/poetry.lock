@@ -1061,14 +1061,14 @@ files = [
 
 [[package]]
 name = "musicai-sdk"
-version = "1.0.2"
-description = "Python SDK for Music.AI"
+version = "0.4.1"
+description = "Python sdk for music.ai"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "musicai_sdk-1.0.2-py3-none-any.whl", hash = "sha256:2072ac0d98904076bcde2d7f47e8060f2b7213571609791b674016c1a21f48af"},
-    {file = "musicai_sdk-1.0.2.tar.gz", hash = "sha256:d318a9a9bee6c2be2c55a5bfce7a926b3976ee0ae889abfa0e4ca632537985ac"},
+    {file = "musicai_sdk-0.4.1-py3-none-any.whl", hash = "sha256:d9637d6475e40b2070b8a799c3bfbabdf1556dc818db59dee1709564e551557b"},
+    {file = "musicai_sdk-0.4.1.tar.gz", hash = "sha256:9ebec5c73ca5d06cccab2d36edd033ee956f476dac5c7ac503d048938bff05cb"},
 ]
 
 [package.dependencies]
@@ -2282,4 +2282,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.12"
-content-hash = "79a7ca57079e5a5fb8d3b577af774f21eb60d47ca1224250bf6d03231db541ac"
+content-hash = "aa764ed6a4d536b2e1fc8aca37c8f25fdd2d45dff912120054a6d68dcab0d945"

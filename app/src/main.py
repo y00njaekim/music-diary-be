@@ -85,12 +85,11 @@ def analyze_music():
         print("Received data:", post_data)  # 요청 데이터 출력
 
         music_path = post_data.get("url")
+        lyrics = post_data.get("lyrics")
         if not music_path:
             raise ValueError("Missing 'url' field")
-
-        user_id = post_data["currentUser"]
-        context = chatbot_states[user_id]["context"]
-        lyrics = context["lyrics"]
+        if not lyrics:
+            raise ValueError("Missing 'lyrics' field")
 
         print(f"Music path: {music_path}, Lyrics: {lyrics}")
 
@@ -119,15 +118,13 @@ def analyze_music():
         la.analyze()
         result = la.get_final_format()
 
-        user_id = post_data["currentUser"]
-        context = chatbot_states[user_id]["context"]
         bpm = result["BPM"]
         instruments = result["Instruments"]  # 예: ["piano","drum"]
         emotions = result["Emotions"]  # 예: ["happy","excited"]
 
         # 리스트인 Instruments, Emotions를 문자열로 합치고, BPM을 포함해 하나의 문자열로 만듭니다.
         final_str = f"BPM: {bpm}, Instruments: {', '.join(instruments)}, Emotions: {', '.join(emotions)}"
-        context["music_analysis"] = final_str
+        print(f"분석 요약: {final_str}")
         # 임시 파일 삭제
         os.remove("temp_music_file.wav")
 
@@ -146,6 +143,9 @@ def analyze_music():
 @verify_jwt
 def generate_response():
     try:
+        # 쿼리 파라미터에서 sid 추출 및 출력
+        sid = request.args.get("sid")
+        print(f"[generate_response] sid: {sid}")
         # POST 데이터 가져오기
         post_data = request.get_json()
         if post_data is None:
