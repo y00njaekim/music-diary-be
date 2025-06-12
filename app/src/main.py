@@ -1,19 +1,21 @@
 import dotenv
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import json
 import traceback
-from analyzer.music import MusicAnalyzer
 import os
 import requests
 import datetime
+import logging
+
 from langchain.memory import ConversationSummaryMemory  # ConversationSummaryMemory(llm=llm, memory_key="history")
 from langchain_openai import ChatOpenAI
-from chatbot.execute_state import execute_state, State, STATE_NEXT
-import jwt
-from functools import wraps
-import logging
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
 from llm_instance import llm
+from analyzer.music import MusicAnalyzer
+from chatbot.execute_state import execute_state, State, STATE_NEXT
+from database.verification import verify_jwt
+from database.manager import DBManager
 
 app = Flask(__name__)
 CORS(
@@ -37,41 +39,11 @@ user_memories = {}
 # 사용자별 채팅봇 상태 저장소 (analyze_music에서 사용하던 것으로 추정)
 chatbot_states = {}
 
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 
-
-def verify_jwt(f):
-    """JWT 토큰을 검증하는 데코레이터 (대칭키 방식)"""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return jsonify({"error": "인증 헤더가 없습니다"}), 401
-
-        if not SUPABASE_JWT_SECRET:
-            return jsonify({"error": "서버 설정 오류: JWT 시크릿이 없습니다."}), 500
-
-        try:
-            if not auth_header.startswith("Bearer "):
-                return jsonify({"error": "잘못된 인증 헤더 형식입니다"}), 401
-            token = auth_header.split(" ")[1]
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
-            user_id = payload.get("sub")  # user.id
-            email = payload.get("email", "")  # user.email
-            user_metadata = payload.get("user_metadata", {})
-            name = user_metadata.get("name", email.split("@")[0] if email else "User")
-            app_metadata = payload.get("app_metadata", {})
-            request.jwt_user = {"id": user_id, "email": email, "name": name, "user_metadata": user_metadata, "app_metadata": app_metadata}
-            return f(*args, **kwargs)
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "토큰이 만료되었습니다"}), 401
-        except jwt.InvalidTokenError as e:
-            return jsonify({"error": "유효하지 않은 토큰입니다"}), 401
-        except Exception as e:
-            return jsonify({"error": f"토큰 검증 중 오류: {str(e)}"}), 500
-
-    return decorated_function
+# TODO 1: session (diary) 생성 및 DB 저장, session에 대한 초기 state, keyword row 생성 + session 정보 유지
+# TODO 2: chat 진행에 따른 chat table update (insert), state, keyword table update (insert)
+# TODO 3: lyrics, music, musicVis가 생성되거나 업데이트 되면 해당 table insert
+# TODO 4: session이 끊길 때 summary table insert
 
 
 @app.route("/analysis", methods=["POST"])
@@ -89,6 +61,7 @@ def analyze_music():
 
     try:
         post_data = request.get_json()
+        user_id = request.jwt_user["id"]
         if post_data is None:
             raise ValueError("No JSON data provided")
 
@@ -280,5 +253,6 @@ def health_check():
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
+    db_manager = DBManager()
     port = int(os.getenv("PORT", 5000))  # Render 환경 변수 PORT 사용
     app.run(host="0.0.0.0", port=port)
