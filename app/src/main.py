@@ -16,6 +16,8 @@ from analyzer.music import MusicAnalyzer
 from chatbot.execute_state import execute_state, State, STATE_NEXT
 from database.verification import verify_jwt
 from database.manager import DBManager
+from chatbot.lyrics_change import lyrics_change
+import uuid  # 추가
 
 app = Flask(__name__)
 CORS(
@@ -38,6 +40,11 @@ user_memories = {}
 
 # 사용자별 채팅봇 상태 저장소 (analyze_music에서 사용하던 것으로 추정)
 chatbot_states = {}
+
+# 임시 가사 저장소 (DB 연결 전 메모리 기반)
+saved_lyrics: dict[str, dict] = {}
+
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 
 
 # TODO 1: session (diary) 생성 및 DB 저장, session에 대한 초기 state, keyword row 생성 + session 정보 유지
@@ -202,6 +209,32 @@ def generate_response():
         return jsonify(error_message), 500
 
 
+@app.route("/lyrics/change", methods=["POST"])
+@verify_jwt
+def change_lyrics_api():
+    """가사 변경 API"""
+    try:
+        post_data = request.get_json()
+        if not post_data:
+            return jsonify({"error": "JSON 데이터가 제공되지 않았습니다"}), 400
+
+        total_lyrics = post_data.get("total_lyrics")
+        change_lyrics = post_data.get("change_lyrics")
+        user_lyric_prompt = post_data.get("user_lyric_prompt")
+
+        if not all([total_lyrics, change_lyrics, user_lyric_prompt]):
+            return jsonify({"error": "total_lyrics, change_lyrics, user_lyric_prompt 필드가 필요합니다"}), 400
+
+        result_lyrics = lyrics_change(total_lyrics=total_lyrics, change_lyrics=change_lyrics, user_lyric_prompt=user_lyric_prompt)
+
+        return jsonify({"changed_lyrics": result_lyrics}), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /lyrics/change: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/next_state", methods=["POST"])
 @verify_jwt
 def next_state():
@@ -242,6 +275,29 @@ def next_state():
         return jsonify(error_message), 500
 
 
+@app.route("/session/start", methods=["POST"])
+@verify_jwt
+def start_session():
+    try:
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 세션 ID 생성
+        session_id = str(uuid.uuid4())
+
+        # 사용자별 세션 저장소에 저장 (선택적)
+        if user_id not in user_memories:
+            user_memories[user_id] = ConversationSummaryMemory(llm=llm, memory_key="history", return_messages=True)
+
+        return jsonify({"sid": session_id, "user_id": user_id}), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /session/start: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/health", methods=["GET"])
 def health_check():
     try:
@@ -249,6 +305,50 @@ def health_check():
         return jsonify({"status": "healthy", "timestamp": current_time, "service": "music-diary-backend", "version": "1.0.0"}), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e), "timestamp": datetime.datetime.now().isoformat()}), 500
+
+
+@app.route("/lyrics/save", methods=["POST"])
+@verify_jwt
+def save_lyrics_api():
+    """사용자가 확정한 가사를 저장하는 API (임시: 메모리/파일 저장)"""
+    try:
+        # 세션 ID (선택) – 쿼리스트링으로 전달됨
+        sid = request.args.get("sid") or "unknown_session"
+
+        post_data = request.get_json()
+        if not post_data:
+            return jsonify({"error": "JSON 데이터가 제공되지 않았습니다"}), 400
+
+        lyrics = post_data.get("lyrics")
+        if not lyrics:
+            return jsonify({"error": "lyrics 필드가 필요합니다"}), 400
+
+        # JWT 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 메모리 저장 (DB 도입 전 임시)
+        saved_lyrics.setdefault(user_id, {})[sid] = {
+            "lyrics": lyrics,
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+        }
+
+        # 파일로도 백업 (optional)
+        try:
+            os.makedirs("saved_lyrics", exist_ok=True)
+            file_path = os.path.join("saved_lyrics", f"{user_id}_{sid}.txt")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(lyrics)
+        except Exception as fe:
+            # 파일 저장 실패해도 치명적이지 않으므로 로그만 출력
+            print(f"[save_lyrics_api] 파일 저장 실패: {fe}")
+
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /lyrics/save: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
 
 
 if __name__ == "__main__":
