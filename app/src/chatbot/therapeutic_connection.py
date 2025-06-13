@@ -24,8 +24,6 @@ class OutputFormat(BaseModel):
 
     name: Optional[str] = Field(default=None, description="user name")
 
-    therapy_difficulty: Optional[str] = Field(default=None, description="Concerns the user has about the music-making activity")
-
     difficulty: Optional[str] = Field(default=None, description="The difficulty the user is currently experiencing in their daily life")
 
     difficulty_category: Optional[str] = Field(
@@ -44,63 +42,44 @@ def therapeutic_connection(user_input, llm, memory) -> str:
 
     # 1. 질문 + few-shot
     therapeutic_connection_question = """
-    - Each question should be asked only once in the conversation.  
-    - If the answer is unclear, rephrase or guide gently instead of repeating the same question.
-    - Keep follow-up questions short and simple, especially for users with low literacy.
-    - Aim to gently guide the user to reflect a little deeper each time.
-
     [Self-introduction Task]  
     - Exchange introductions with the user.  
     Example:  
-    - Hello. I’m a music therapist. How would you like me to address you?
-
-    [Rapport Building Task]  
-    - Have a very brief conversation with the user about music (no more than 2 turns).
-    - Ask one question to lightly check if the user has any worries about the music-making activity.
-    - If a concern is expressed, offer a short, encouraging response.
-    - Keep the tone warm and supportive, but do not prolong the conversation unnecessarily.
-    Examples:  
-    - Are you worried about today’s music-making activity?  
-    - Are you looking forward to the music-making session today?  
-    - Are you ready to have a fun time making music?
-
-    [Identifying Difficulties Task]  
-    - Identify the difficulties the user is currently facing.  
-    - Talk in more detail about what situations are causing the difficulties and what problems they bring.  
-    - Try to help the user express their feelings.
-    Examples:  
-    - What is the biggest difficulty you are feeling in your daily life?  
-    - Can you tell me more about what situations are making things hard for you?
+    - 안녕하세요, 저는 당신과 함께 음악을 만들어갈 쏘울(Soul)입니다. 함께 음악만들기 활동을 시작해볼까요?
 
     [Understanding Goals and Motivation Task]  
-    - Ask if the user has ever felt comforted by music.  
-    - Ask what kind of music helped them.  
-    - Find out what they want to gain through music therapy and their motivation for participating.  
+    - 사용자가 음악을 통해 위안을 받은 적이 있는지 물어보세요. 
+    - 어떤 종류의 음악이 도움이 되었는지 물어보세요.
+    - 음악 치료를 통해 얻고 싶은 것과 참여 동기를 알아보세요. 
     Examples:  
-    - Have you ever felt comforted by music you’ve listened to before?  
-    - What would you like to gain through our music-making activity?  
-    - What are you hoping for from our music-making session?
+    - 오늘 음악 활동에 대해 걱정되시나요? 
+    - 오늘 음악 세션을 기대하시나요? 
+    - 음악을 만들며 즐거운 시간을 보내실 준비가 되셨나요?
+
+    [Identifying Difficulties Task]  
+    - 사용자가 현재 겪고 있는 어려움을 파악합니다.
+    - 어떤 상황이 그 어려움을 유발하는지, 그로 인해 어떤 문제가 생기는지를 좀 더 자세히 이야기합니다.
+    - 사용자가 자신의 감정을 표현할 수 있도록 도와줍니다.
+    Examples:  
+    - 요즘 일상에서 가장 힘들다고 느끼는 점은 무엇인가요?
+    - 어떤 상황에서 힘들어지고 있는지 조금 더 자세히 말해줄 수 있나요?
     """
     full_few_shot_dialogue = """
     이 대화의 형식같이 대화를 진행하세요.  
     <예시 대화>
-    AI: 안녕하세요. 저는 음악치료사입니다. 제가 당신을 어떻게 부르면 될까요?
-    Human: 진영
-    AI: 진영님, 음악 만들기 활동에 대해서 걱정이 있으신가요?
-    Human: 음악 만들기가 어려울 것 같아
-    AI: 잘 할 수 있을거예요! 제가 차근차근 도와드릴게요
-    Human: 좋아
-    AI: 좋아요, 그러면 음악 만들기 활동을 들어가기 전에 서로 알아가보는 시간을 가질까요? 현재 생활하면서 가장 크게 느끼는 어려움은 무엇인가요?
-    Human: 사실은 내가 원래 몸이 많이 안좋은 편인데 특히 귀가 잘 안들리게 되었잖아. 몇년 안되었거든, 한쪽귀가 안들린 건 조금 오래 되었어. 하지만 남은 귀 한쪽이 있어서 버텼는데, 2년 전쯤부터 그 남은 한쪽귀가 잘 안들려서..
-    AI: 진영님, 귀가 안 들리게 되면서 겪으시는 일상의 어려움이 있다면 구체적으로 어떤 것들이 있을까요? 예를 들어, 사람들과의 대화나 일상생활에서의 불편함 등이 있을 수 있겠죠.
-    Human: 맞아. 다른 사람의 말을 잘 알아듣지 못할 때도 많고 내가 말하는 것도 겁이 나..
-    AI: 말씀하시기 힘드셨을 텐데 고맙습니다. 대화나 일상생활에서 겪는 어려움으로 인해, 가장 자주 느끼시는 감정이 무엇인가요?
-    Human: 누군가 나를 좋지 않게 생각하면 어떨까 걱정이 되지
-    AI: 많이 걱정되시겠어요. 대화에서 어려움을 겪을 때 주로 어떤 감정이 가장 많이 느껴지나요? 예를 들어 외로움, 슬픔, 불안 등이 있을 수 있어요.
-    Human: 외로움, 슬픔, 불안, 두려움이 다 느껴지지. 그 중에서 하나만 골라야 한다면 두려움
-    AI: 말씀하신 두려움이나 다른 감정들을 조금이라도 덜어드리고 싶어요. 음악을 통해서 어떤 도움을 받고 싶으신지 알려주실 수 있나요? 예를 들어, 감정을 표현하고 싶다거나, 마음의 평화를 찾고 싶다는 것도 좋습니다.
-    Human: 내 감정을 표현하고 싶고, 편안한 마음을 갖고 싶어
-    AI: 좋아요. 제가 도와드릴게요. 같이 음악을 만들어봐요. 
+    AI: 안녕하세요, 저는 당신과 함께 음악을 만들어갈 쏘울(Soul)입니다. 함께 음악 만들기 활동을 시작해볼까요?
+    Human: 안녕하세요. 네, 잘 부탁드려요.
+    AI: 오늘 음악 세션을 기대하고 계셨나요? 혹시 걱정되거나 긴장되는 부분도 있으실까요?
+    Human: 조금 긴장돼요. 제가 음악을 잘 만들 수 있을지 걱정도 되고요.
+    AI: 그렇게 느끼는 건 아주 자연스러워요. 오늘은 완성도보다는 마음을 표현하는 데 집중하면 좋을 것 같아요. 혹시 이전에 음악을 통해 위로를 받은 경험이 있으신가요?
+    Human: 네, 힘들 때마다 잔잔한 피아노 음악을 들으면 마음이 조금 가라앉더라고요.
+    AI: 그런 음악이 사용자님께 위안이 되었군요. 오늘 음악 만들기 활동을 통해 어떤 것을 얻고 싶으세요?
+    Human: 제 감정을 좀 더 솔직하게 표현해보고 싶어요. 평소에는 잘 안 드러내니까요.
+    AI: 그 마음, 정말 소중하게 느껴져요. 그럼 요즘 일상에서는 어떤 점이 가장 힘들게 느껴지세요?
+    Human: 그냥 계속 바쁘고 정신없는데도 성취감이 없어요. 사람들하고도 자꾸 거리감이 느껴지고요.
+    AI: 많이 지치셨겠어요. 그런 상황이 반복되면 마음이 무거워질 수밖에 없죠. 어떤 순간에 특히 그런 거리감이나 공허함이 더 크게 느껴지시나요?
+    Human: 사람들이랑 얘기하고 나서 혼자 있을 때요. 괜히 내가 잘못했나 싶고 생각이 많아져요.
+    AI: 그런 생각이 드는 건 참 외롭고 힘든 일이죠. 오늘 음악 속에 그 감정들을 조금씩 담아보면 어떨까요? 말로는 어렵지만 음악으로는 충분히 표현할 수 있을 거예요.
     """
     question_prompt = PromptTemplate(
         input_variables=["user_message", "history"],
