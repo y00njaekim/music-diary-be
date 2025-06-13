@@ -1,0 +1,138 @@
+import os
+from enum import Enum
+
+from supabase import create_client, Client
+
+from database.verification import verify_jwt
+
+
+class SEARCH_OPTION(Enum):
+    ALL = 0
+    ID = 1
+    LAST_K = 2
+    LATEST = 3
+
+REFERENCE_RULE = {
+    'diary': 'user_id',
+    'chat': 'session_id',
+    'keywords': 'session_id',
+    'lyrics': 'session_id',
+    'state': 'session_id',
+    'summary': 'session_id',
+    'music': 'lyrics_id',
+    'musicVis': 'music_id',
+}
+
+class DBManager:
+    def __init__(self):
+        url: str = os.environ.get("SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_KEY")
+        self.supabase: Client = create_client(url, key)
+
+        token = os.environ.get("SUPABASE_TOKEN")
+        self.supabase.auth.session = {
+            "access_token": token,
+            "token_type": "bearer"
+        }
+
+    def _insert(self, table: str, data: dict):
+        response = self.supabase.table(table).insert(data).execute()
+        return response
+
+    def _search(self, table: str, data: dict):
+        query = self.supabase.table(table).select("*")
+
+        for column, value in data.items():
+            if column == 'n':
+                continue
+            query = query.eq(column, value)
+
+        # if searching condition is 'the latest' or 'last-k'
+        if 'n' in data:
+            query = query.order("created_at", ascending=False).limit(data['n'])
+
+        return query.execute()
+
+    def insert_diary(self, user_id: str):
+        return self._insert("diary", {"user_id": user_id})
+
+    def insert_chat(self, session_id: str, text: str, user_say: bool):
+        return self._insert("chat", {"session_id": session_id, "text": text, "user_say": user_say})
+
+    def insert_state(self, session_id: str, state_name: str):
+        return self._insert("state", {"session_id": session_id, "state_name": state_name})
+
+    def insert_keywords(self, session_id: str, keywords: dict, reference_chat_start: str, reference_chat_end: str):
+        return self._insert('keywords',
+                            {
+                                "session_id": session_id,
+                                "keywords": keywords,
+                                "reference_chat_start": reference_chat_start,
+                                "reference_chat_end": reference_chat_end
+                            })
+
+    def insert_lyrics(self, session_id: str, chat_id: str, lyrics: str, prompt: str):
+        return self._insert("lyrics",
+                            {
+                                "session_id": session_id,
+                                "chat_id": chat_id,
+                                "lyrics": lyrics,
+                                "prompt": prompt
+                            })
+
+    def insert_music(self, lyrics_id: str, prompt: str, url: str, title: str):
+        return self._insert("music",
+                            {
+                                "lyrics_id": lyrics_id,
+                                "prompt": prompt,
+                                "url": url,
+                                "title": title
+                            })
+
+    def insert_music_vis(self, music_id: str, vis_data: dict):
+        return self._insert("musicVis",
+                            {
+                                "music_id": music_id,
+                                "vis_data": vis_data
+                            })
+
+    def insert_summary(self, session_id: str, summary: str,
+                       latest_chat: str, latest_music: str, latest_state: str, latest_keywords: str):
+        return self._insert("summary",
+                            {
+                                "session_id": session_id,
+                                "summary": summary,
+                                "latest_chat": latest_chat,
+                                "latest_music": latest_music,
+                                "latest_state": latest_state,
+                                "latest_keywords": latest_keywords
+                            })
+
+    def search(self, table: str, reference: str, ref_id: str, search_option: str, **kwargs: dict):
+        '''
+            kwargs:
+                id: for search by id
+                n: for search by recent n items
+        '''
+
+        if reference is not REFERENCE_RULE[table]:
+            raise ValueError(f"{table} query must refer to '{REFERENCE_RULE[table]}'")
+
+        data = {
+            reference: ref_id
+        }
+
+        if search_option == SEARCH_OPTION.ALL:
+            pass
+        elif search_option == SEARCH_OPTION.ID:
+            if 'id' not in kwargs:
+                raise ValueError("Need the argument 'session_id' to query by id")
+            data[f'{table}_id'] = kwargs['id']
+        elif search_option == SEARCH_OPTION.LAST_K:
+            if 'n' not in kwargs:
+                raise ValueError("Need the argument 'n' to query the last-n items")
+            data['n'] = kwargs['n']
+        else:  # Latest
+            data['n'] = 1
+
+        return self._search(table, data)
