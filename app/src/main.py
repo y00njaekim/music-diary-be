@@ -15,7 +15,7 @@ from llm_instance import llm
 from analyzer.music import MusicAnalyzer
 from chatbot.execute_state import execute_state, State, STATE_NEXT
 from database.verification import verify_jwt
-from database.manager import DBManager
+from database.manager import DBManager, SEARCH_OPTION
 from chatbot.lyrics_change import lyrics_change
 import uuid  # 추가
 
@@ -38,8 +38,8 @@ CORS(
 # 사용자별 메모리 저장소
 user_memories = {}
 
-# 사용자별 채팅봇 상태 저장소 (analyze_music에서 사용하던 것으로 추정)
-chatbot_states = {}
+# 전체 채팅 서머리 기록소
+chat_summary = {}
 
 # 임시 가사 저장소 (DB 연결 전 메모리 기반)
 saved_lyrics: dict[str, dict] = {}
@@ -47,10 +47,10 @@ saved_lyrics: dict[str, dict] = {}
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 
 
-# TODO 1: session (diary) 생성 및 DB 저장, session에 대한 초기 state, keyword row 생성 + session 정보 유지
-# TODO 2: chat 진행에 따른 chat table update (insert), state, keyword table update (insert)
-# TODO 3: lyrics, music, musicVis가 생성되거나 업데이트 되면 해당 table insert
-# TODO 4: session이 끊길 때 summary table insert
+# DID 1: session (diary) 생성 및 DB 저장, session에 대한 초기 state, keyword row 생성 + session 정보 유지
+# DID 2: chat 진행에 따른 chat table update (insert), state, keyword table update (insert)
+# DID 3: lyrics, music, musicVis가 생성되거나 업데이트 되면 해당 table insert
+# DID 4: session이 끊길 때 summary table insert -> 매 대화마다 summary 추가하는 걸로 바꿈
 
 
 @app.route("/analysis", methods=["POST"])
@@ -112,6 +112,9 @@ def analyze_music():
         instruments = result["Instruments"]  # 예: ["piano","drum"]
         emotions = result["Emotions"]  # 예: ["happy","excited"]
 
+        music_id = db_manager.search("music", "url", music_path, SEARCH_OPTION.LATEST.value).data[0]["music_id"]
+        _ = db_manager.insert_music_vis(music_id, result)
+
         # 리스트인 Instruments, Emotions를 문자열로 합치고, BPM을 포함해 하나의 문자열로 만듭니다.
         final_str = f"BPM: {bpm}, Instruments: {', '.join(instruments)}, Emotions: {', '.join(emotions)}"
         print(f"분석 요약: {final_str}")
@@ -134,7 +137,17 @@ def analyze_music():
 def generate_response():
     try:
         # 쿼리 파라미터에서 sid 추출 및 출력
-        sid = request.args.get("sid")
+        front_sid = request.args.get("sid")
+        sid = db_manager.get_current_session()
+
+        if front_sid != sid:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
+
+        state_res = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        pre_state = state_res.data[0]["state_name"]
+        state_id = state_res.data[0]["state_id"]
+        slot_rss = db_manager.search("slot", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        slot = slot_rss.data[0]['keywords']
         # print(f"[generate_response] sid: {sid}")
         # POST 데이터 가져오기
         post_data = request.get_json()
@@ -151,7 +164,10 @@ def generate_response():
         user_input = post_data.get("input")
         state = post_data.get("state")
         turn = post_data.get("turn", 0)
-        slot = post_data.get("slot", {})
+        # slot = post_data.get("slot", {})
+
+        if pre_state != state:
+            raise ValueError(f"State consistency error: {pre_state} != {state}")
 
         # slot에 사용자 이름 추가
         if user_name:
@@ -170,6 +186,10 @@ def generate_response():
             user_memories[user_id] = ConversationSummaryMemory(llm=llm, memory_key="history", return_messages=True)
             print(f"새로운 사용자 {user_id}에 대한 메모리 생성됨")
 
+        if user_id not in chat_summary:
+            chat_summary[user_id] = ConversationSummaryMemory(llm=llm, memory_key="chat", return_messages=True)
+            print(f"새로운 사용자 {user_id}에 대한 채팅 메모리 생성됨")
+
         memory = user_memories[user_id]
 
         if turn == 0:
@@ -183,11 +203,29 @@ def generate_response():
             # 잘못된 state 값이 들어온 경우 에러 처리
             raise ValueError(f"알 수 없는 state 값입니다: {state}")
 
-        response, flag, updated_slot = execute_state(user_input=user_input, state=state_enum, turn=turn, slot=slot, memory=memory)
+        response, flag, updated_slot = execute_state(
+            user_input=user_input,
+            state=state_enum,
+            turn=turn,
+            slot=slot,
+            memory=memory,
+            summary=chat_summary[user_id],
+            db_manager=db_manager,
+        )
 
         # 대화 컨텍스트를 메모리에 저장 (save_context 메서드 사용)
         # 이렇게 하면 자동으로 요약이 업데이트됩니다
         memory.save_context(inputs={"input": user_input}, outputs={"output": response})
+
+        chat_summary[user_id].save_context(inputs={"input": user_input}, outputs={"output": response})
+        sum_var = chat_summary[user_id].load_memory_variables(inputs={})
+        summary = sum_var.get("chat", "[현재 저장된 채팅 없음]")
+
+        latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
+        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['keywords']
+        latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
+        latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0]['music_id']
+        _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, state_id, latest_keywords)
 
         # turn 증가
         next_turn = turn + 1
@@ -214,6 +252,12 @@ def generate_response():
 def change_lyrics_api():
     """가사 변경 API"""
     try:
+        front_sid = request.args.get("sid")
+        sid = db_manager.get_current_session()
+        uid = db_manager.get_current_user()
+
+        if front_sid != sid:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
         post_data = request.get_json()
         if not post_data:
             return jsonify({"error": "JSON 데이터가 제공되지 않았습니다"}), 400
@@ -225,7 +269,27 @@ def change_lyrics_api():
         if not all([total_lyrics, change_lyrics, user_lyric_prompt]):
             return jsonify({"error": "total_lyrics, change_lyrics, user_lyric_prompt 필드가 필요합니다"}), 400
 
+        user_input = f'{change_lyrics} -> {user_lyric_prompt}'
         result_lyrics = lyrics_change(total_lyrics=total_lyrics, change_lyrics=change_lyrics, user_lyric_prompt=user_lyric_prompt)
+
+        chat_res = db_manager.insert_chat(sid, user_input, True)
+        chat_id = chat_res.data[0]["chat_id"]
+        _ = db_manager.insert_chat(sid, result_lyrics, False)
+        _ = db_manager.insert_lyrics(sid, chat_id, result_lyrics)
+
+        chat_summary[uid].save_context(inputs={"input": user_input}, outputs={"output": result_lyrics})
+        sum_var = chat_summary[uid].load_memory_variables(inputs={})
+        summary = sum_var.get("chat", "[현재 저장된 채팅 없음]")
+
+        latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
+        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0][
+            'keywords']
+        latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
+        latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0][
+            'music_id']
+        latest_state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['state_id']
+
+        _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, latest_state, latest_keywords)
 
         return jsonify({"changed_lyrics": result_lyrics}), 200
 
@@ -239,6 +303,12 @@ def change_lyrics_api():
 @verify_jwt
 def next_state():
     try:
+        front_sid = request.args.get("sid")
+        sid = db_manager.get_current_session()
+
+        if front_sid != sid:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
+
         post_data = request.get_json()
         if post_data is None:
             raise ValueError("JSON 데이터가 제공되지 않았습니다")
@@ -249,19 +319,20 @@ def next_state():
 
         # 현재 state만 추출
         state_str = post_data.get("state")
-
-        if not state_str:
-            raise ValueError("state가 필요합니다")
+        state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["state_name"]
+        if state_str != state:
+            raise ValueError(f"State consistency error: {state_str} != {state}")
 
         # Enum 변환 및 다음 state 계산
         try:
-            current_state = State(state_str)
+            current_state = State(state)
         except ValueError:
-            raise ValueError(f"알 수 없는 state: {state_str}")
+            raise ValueError(f"알 수 없는 state: {state}")
 
         next_state_enum = STATE_NEXT.get(current_state)
         next_state_str = next_state_enum.value if next_state_enum else None
 
+        _ = db_manager.insert_state(sid, next_state_str)
         response_data = {"state": next_state_str, "turn": 0}
         return jsonify(response_data), 200
 
@@ -310,7 +381,12 @@ def start_session():
         user_id = jwt_user["id"]
 
         # 세션 ID 생성
-        session_id = str(uuid.uuid4())
+        response = db_manager.insert_diary(user_id)
+        session_id = response.data[0]['session_id']
+        db_manager.update_current_info(user_id, session_id)
+        db_manager.insert_state(session_id, State.THERAPEUTIC_CONNECTION.value)
+        db_manager.insert_keywords(session_id, {}, None, None)
+        # session_id = str(uuid.uuid4())
 
         # 사용자별 세션 저장소에 저장 (선택적)
         if user_id not in user_memories:

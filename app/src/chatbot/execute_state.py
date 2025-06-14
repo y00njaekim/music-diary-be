@@ -3,6 +3,7 @@ from .therapeutic_connection import therapeutic_connection
 from .lyrics_creation import extraction_source, making_lyrics
 from .music_creation import music_making, music_creation
 from .music_discussion import music_discussion
+from database.manager import DBManager, SEARCH_OPTION
 
 
 from typing import TypedDict, Tuple, Union
@@ -100,8 +101,8 @@ STATE_NEXT = {
 
 
 def execute_state(
-    user_input: str, state: State, turn: int, slot: CombinedSlot, memory: BaseMemory
-) -> Tuple[str, int, Union[TherapeuticConnectionSlot | ExtractionSourceSlot | MakingLyricsSlot | MusicMakingSlot | MusicDiscussionSlot]]:
+    user_input: str, state: State, turn: int, slot: CombinedSlot, memory: BaseMemory, summary: BaseMemory, db_manager: DBManager,
+) -> Tuple[str, int, CombinedSlot]:
     flag = 0
 
     # state지정
@@ -126,28 +127,50 @@ def execute_state(
         response, state_slot = func(user_input, llm, memory)
         # print(response)
 
-    # slot 다 채웠는지 확인
-    none_fields = {k: v for k, v in state_slot.model_dump().items() if v is None}
+    none_fields = 0
+    for k, v in state_slot.model_dump().items():
+        if k not in slot:
+            slot[k] = v
+        else:
+            if v is not None:
+                slot[k] = v
+
+        if v is None:
+            none_fields += 1
+
+    sid = db_manager.get_current_session()
+    _ = db_manager.insert_chat(sid, user_input, True)
+    _ = db_manager.insert_chat(sid, response, False)
+    _ = db_manager.insert_keywords(sid, slot)
+
+    if state == State.MAKING_LYRICS:
+        flag = 1
+        lyrics = slot["lyrics"]
+        _ = db_manager.insert_lyrics(sid, lyrics)
+
+    # TODO: 노래 생성에 실패해도 그냥 다음 state로 넘어가???
+    if state == State.MUSIC_CREATION:
+        flag = 1
+        style_elems = []
+        for k in ['genre', 'instrument', 'mood', 'vocal', 'tempo']:
+            if slot[k] is not None:
+                style_elems.append(slot[k])
+        style = ", ".join(style_elems)
+        # title = slot['name']  # probably it is a username
+
+        # TODO: 항상 제일 마지막으로 저장된 lyrics가 음악 생성에 사용될 가사라는 가정이 깔리있음. 아닌 경우는 없는 지 확인 필요.
+        lyrics_id = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
+        url = response.split(":")[-1].strip()
+        _ = db_manager.insert_music(sid, lyrics_id, style, url, "").data[0]["music_id"]
 
     # 다음 state로 넘어갈지 flag
-    if len(none_fields) == 0:
+    if none_fields == 0:
         # 버튼뜨는 타이밍
         print("all slot filled")
         flag = 1
 
-        return response, flag, state_slot.model_dump()
-
-    if state == State.MAKING_LYRICS:
-        flag = 1
-        return response, flag, state_slot.model_dump()
-
-    if state == State.MUSIC_CREATION:
-        flag = 1
-        return response, flag, state_slot.model_dump()
-
-    if turn > 1:
+    if turn > 1: # TODO: check 1 -> 5?
         print("over the 5 turn")
         flag = 1
-        return response, flag, state_slot.model_dump()
 
-    return response, flag, state_slot.model_dump()
+    return response, flag, slot

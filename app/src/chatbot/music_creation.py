@@ -208,10 +208,13 @@ def music_creation(user_input, llm, memory):
     for key in ["genre", "instrument", "mood", "vocal", "tempo"]:
         value = user_input_dict.get(key, None)
         if value:
-            style_elements.append(f"{key}: {value}")
-    music_component = ", ".join(style_elements) if style_elements else "기본 스타일"
+            # TODO: mureka에 meta tag 넣을 때 key: value 구조가 아닐텐데? 그냥 tag1, tag2, ... 이렇게 넣을 거임.
+            # style_elements.append(f"{key}: {value}")
+            style_elements.append(value)
+    music_component = ", ".join(style_elements) if style_elements else ""
 
     # 3. 제목 추출 (없으면 'Untitled Song')
+    # TODO: slot에서 name은 user name 아닌가?
     title = user_input_dict.get("name", "Untitled Song")
 
     # 4. Mureka API 호출 및 결과 반환
