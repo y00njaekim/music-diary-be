@@ -179,6 +179,7 @@ def making_lyrics(user_input, llm, memory):
     question_chain = question_prompt | llm | StrOutputParser()
     question = question_chain.invoke({"slot": user_input, "history": history})
 
+    # TODO: 여기서 메모리 업데이트가 필요함? -> func 내부에서 (전부 다) save_context하는 거랑 main에서 하는 거랑 중복되지 않는 지 확인할 것
     memory.save_context({"input": user_input}, {"output": question})
 
     # print_memory_summary(memory)
