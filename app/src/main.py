@@ -140,16 +140,14 @@ def generate_response():
         front_sid = request.args.get("sid")
         sid = db_manager.get_current_session()
 
-
-
         if front_sid != sid:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
 
         state_res = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value)
         pre_state = state_res.data[0]["state_name"]
         state_id = state_res.data[0]["state_id"]
-        slot_rss = db_manager.search("slot", "session_id", sid, SEARCH_OPTION.LATEST.value)
-        slot = slot_rss.data[0]['keywords']
+        slot_rss = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        slot = json.loads(slot_rss.data[0]['keywords'])
         # print(f"[generate_response] sid: {sid}")
         # POST 데이터 가져오기
         post_data = request.get_json()
@@ -223,11 +221,12 @@ def generate_response():
         sum_var = chat_summary[user_id].load_memory_variables(inputs={})
         summary = sum_var.get("chat", "[현재 저장된 채팅 없음]")
 
-        latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
-        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['keywords']
-        latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
-        latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0]['music_id']
-        _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, state_id, latest_keywords)
+        #summary는 termination state에서!
+        # latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
+        # latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['keywords']
+        # latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
+        # latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0]['music_id']
+        # _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, state_id, latest_keywords)
 
         # turn 증가
         next_turn = turn + 1
@@ -387,7 +386,7 @@ def start_session():
         session_id = response.data[0]['session_id']
         db_manager.update_current_info(user_id, session_id)
         db_manager.insert_state(session_id, State.THERAPEUTIC_CONNECTION.value)
-        db_manager.insert_keywords(session_id, {}, None, None)
+        db_manager.insert_keywords(session_id, json.dumps({}))
         # session_id = str(uuid.uuid4())
 
         # 사용자별 세션 저장소에 저장 (선택적)

@@ -55,7 +55,7 @@ class DBManager:
         return self._insert("diary", {"user_id": user_id})
 
     def insert_chat(self, session_id: str, text: str, user_say: bool):
-        return self._insert("chat", {"session_id": session_id, "text": text, "user_say": user_say})
+        return self._insert("chat", {"session_id": session_id, "text": text, "user_says": user_say})
 
     def insert_state(self, session_id: str, state_name: str):
         return self._insert("state", {"session_id": session_id, "state_name": state_name})
