@@ -17,6 +17,7 @@ musicai-sdk = "==0.4.1"
 madmom = {path = "../external_libs/madmom", develop = true}
 pyjwt = "^2.10.1"
 gunicorn = "^23.0.0"
+supabase = "^2.15.3"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
