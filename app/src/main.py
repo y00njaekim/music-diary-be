@@ -275,6 +275,32 @@ def next_state():
         return jsonify(error_message), 500
 
 
+@app.route("/move_to_extraction_source", methods=["POST"])
+@verify_jwt
+def move_to_extraction_source():
+    try:
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # extraction_source 상태로 이동
+        response_data = {"state": "extraction_source", "turn": 0}
+        return jsonify(response_data), 200
+
+    except ValueError as ve:
+        error_message = {"error": str(ve)}
+        print(f"ValueError: {str(ve)}")
+        return jsonify(error_message), 400
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/session/start", methods=["POST"])
 @verify_jwt
 def start_session():
