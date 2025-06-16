@@ -140,6 +140,8 @@ def generate_response():
         front_sid = request.args.get("sid")
         sid = db_manager.get_current_session()
 
+
+
         if front_sid != sid:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
 

@@ -123,8 +123,6 @@ def therapeutic_connection(user_input, llm, memory) -> str:
     # eval_chain= eval_prompt | llm | StrOutputParser()
     # eval=eval_chain.invoke({"history": history, "question": question, "bot_questions": bot_question,"user_input":user_input,})
 
-    memory.save_context({"input": user_input}, {"output": question})
-
     # print_memory_summary(memory)
     # print("---")
     # print("조건 ", bot_question)

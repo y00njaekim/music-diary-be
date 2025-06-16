@@ -4,91 +4,10 @@ from .lyrics_creation import extraction_source, making_lyrics
 from .music_creation import music_making, music_creation
 from .music_discussion import music_discussion
 from database.manager import DBManager, SEARCH_OPTION
-
-
-from typing import TypedDict, Tuple, Union
-from langchain_core.memory import BaseMemory
+from .types import CombinedSlot, State
 import json
-from enum import Enum
-
-
-class TherapeuticConnectionSlot(TypedDict):
-    name: str
-    therapy_difficulty: str
-    difficulty: str
-    difficulty_category: str
-    motivation: str
-
-
-class ExtractionSourceSlot(TypedDict):
-    concept: str
-    concept_discussion: str
-    lyric_keyword: str
-    lyric_image: str
-    lyrics_content: str
-
-
-class MakingLyricsSlot(TypedDict):
-    lyrics: str
-
-
-class MusicMakingSlot(TypedDict):
-    music_information: str
-    genre: str
-    instrument: str
-    mood: str
-    vocal: str
-    tempo: str
-
-
-class MusicDiscussionSlot(TypedDict):
-    individual_emotion: str
-    change_mind: str
-    change_attitude: str
-    touching_lyrics: str
-    strength: str
-    feeling: str
-
-
-class CombinedSlot(TypedDict, total=False):
-    # therapeutic_connection
-    name: str
-    therapy_difficulty: str
-    difficulty: str
-    difficulty_category: str
-    motivation: str
-    # extraction_source
-    concept: str
-    concept_discussion: str
-    lyric_keyword: str
-    lyric_image: str
-    lyrics_content: str
-    # making_lyrics
-    lyrics: str
-    # music_making
-    music_information: str
-    genre: str
-    instrument: str
-    mood: str
-    vocal: str
-    tempo: str
-    # music_discussion
-    individual_emotion: str
-    change_mind: str
-    change_attitude: str
-    touching_lyrics: str
-    strength: str
-    feeling: str
-
-
-class State(Enum):
-    THERAPEUTIC_CONNECTION = "therapeutic_connection"
-    EXTRACTION_SOURCE = "extraction_source"
-    MAKING_LYRICS = "making_lyrics"
-    MUSIC_MAKING = "music_making"
-    MUSIC_CREATION = "music_creation"
-    MUSIC_DISCUSSION = "music_discussion"
-
+from typing import Tuple
+from langchain_core.memory import BaseMemory
 
 STATE_NEXT = {
     State.THERAPEUTIC_CONNECTION: State.EXTRACTION_SOURCE,
@@ -158,7 +77,8 @@ def execute_state(
         style = ", ".join(style_elems)
         # title = slot['name']  # probably it is a username
 
-        # TODO: 항상 제일 마지막으로 저장된 lyrics가 음악 생성에 사용될 가사라는 가정이 깔리있음. 아닌 경우는 없는 지 확인 필요.
+        # TODO: 항상 제일 마지막으로 저장된 lyrics가 음악 생성에 사용될 가사라는 가정이 깔리있음. 아닌 경우는 없는 지 확인 필요. 
+        # => 제일 마지막으로 저장된 lyrics을 무조건적으로 사용한다는 시나리오로 가야할 것 같습니다.
         lyrics_id = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
         url = response.split(":")[-1].strip()
         _ = db_manager.insert_music(sid, lyrics_id, style, url, "").data[0]["music_id"]

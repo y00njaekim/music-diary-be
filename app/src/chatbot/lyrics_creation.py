@@ -180,9 +180,8 @@ def making_lyrics(user_input, llm, memory):
     question = question_chain.invoke({"slot": user_input, "history": history})
 
     # TODO: 여기서 메모리 업데이트가 필요함? -> func 내부에서 (전부 다) save_context하는 거랑 main에서 하는 거랑 중복되지 않는 지 확인할 것
-    memory.save_context({"input": user_input}, {"output": question})
+    # => 중복 맞는 것 같습니다. func 내부의 save_context 모두 삭제해두었습니다. 
 
-    # print_memory_summary(memory)
 
     structured_llm = llm.with_structured_output(schema=LyricsOutput)
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")

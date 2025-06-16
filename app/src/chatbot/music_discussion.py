@@ -109,8 +109,6 @@ def music_discussion(user_input, llm, memory):
     question_chain = question_prompt | llm | StrOutputParser()
     question = question_chain.invoke({"user_message": user_input, "history": history})
 
-    memory.save_context({"input": user_input}, {"output": question})
-
     # print_memory_summary(memory)
 
     structured_llm = llm.with_structured_output(schema=OutputFormat)

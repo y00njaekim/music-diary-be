@@ -4,7 +4,7 @@ from typing import Optional
 
 from supabase import create_client, Client
 
-from chatbot.execute_state import CombinedSlot
+from chatbot.types import CombinedSlot
 
 
 class SEARCH_OPTION(Enum):

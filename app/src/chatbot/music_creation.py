@@ -108,8 +108,6 @@ def music_making(user_input, llm, memory):
     question_chain = question_prompt | llm | StrOutputParser()
     question = question_chain.invoke({"user_message": user_input, "history": history})
 
-    memory.save_context({"input": user_input}, {"output": question})
-
     # print_memory_summary(memory)
 
     structured_llm = llm.with_structured_output(schema=OutputFormat)
@@ -209,12 +207,14 @@ def music_creation(user_input, llm, memory):
         value = user_input_dict.get(key, None)
         if value:
             # TODO: mureka에 meta tag 넣을 때 key: value 구조가 아닐텐데? 그냥 tag1, tag2, ... 이렇게 넣을 거임.
+            # => 넵 
             # style_elements.append(f"{key}: {value}")
             style_elements.append(value)
     music_component = ", ".join(style_elements) if style_elements else ""
 
     # 3. 제목 추출 (없으면 'Untitled Song')
     # TODO: slot에서 name은 user name 아닌가?
+    # => 따로 title을 안물어봐서 name을 기준으로 일단 업데이트 해두었습니다.
     title = user_input_dict.get("name", "Untitled Song")
 
     # 4. Mureka API 호출 및 결과 반환
@@ -226,7 +226,7 @@ def music_creation(user_input, llm, memory):
         response = f"노래 생성에 실패했습니다: {audio_url}"
 
     # history 저장
-    memory.save_context({"input": user_input}, {"output": response})
+    # memory.save_context({"input": user_input}, {"output": response})
     memory_vars = memory.load_memory_variables({})
     history = memory_vars.get("history", "")
 
