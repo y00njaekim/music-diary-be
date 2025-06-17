@@ -40,12 +40,13 @@ class MusicDiscussionSlot(TypedDict):
 
 
 class CombinedSlot(TypedDict, total=False):
-    # therapeutic_connection
+    # therapeutic_connection+therapeutic_connection_re
     name: str
-    therapy_difficulty: str
     difficulty: str
     difficulty_category: str
     motivation: str
+    experience: str
+    expression: str
     # extraction_source
     concept: str
     concept_discussion: str
@@ -61,6 +62,7 @@ class CombinedSlot(TypedDict, total=False):
     mood: str
     vocal: str
     tempo: str
+    title: str
     # music_discussion
     individual_emotion: str
     change_mind: str
@@ -76,3 +78,4 @@ class State(Enum):
     MUSIC_MAKING = "music_making"
     MUSIC_CREATION = "music_creation"
     MUSIC_DISCUSSION = "music_discussion"
+    TERMINATION="termination"

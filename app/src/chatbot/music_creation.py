@@ -41,20 +41,12 @@ class OutputFormat(BaseModel):
 
     tempo: Optional[str] = Field(default=None, description="The tempo or speed of the music")
 
+    title: Optional[str] = Field(default=None, description="The title of the music that you specified")
 
-def music_making(user_input, llm, memory):
+
+def music_making(user_input, llm, memory, pre_slot):
     extraction_source_question = f"""
-    가사는 수정하지 않습니다. 
-    [Music Preference Task]
-    - 사용자가 최근에 한 음악 활동에 대해 질문합니다.
-    - 평소 사용자가 경험하는 음악활동에서 사용하는 음악과 비슷한 음악의 정보를 수집해 사용자가 선호하는 음악을 알기 위함입니다.
-    Example:
-    - 최근 어떤 음악 활동(음악감상, 악기연주, 노래부르기 등)을 했나요?
-    - 최근 어떤 음악을 주로 감상했나요?
-    - 평소 좋아하는 음악이 무엇인가요?
-    - 그 음악에 대해서 저에게 설명해줄 수 있나요?
-    - 혹시 싫어하거나 제외했으면 하는 음악이 있나요?
-
+    가사는 수정하지 않습니다.
     [Making Music Task]
     - 만들고 싶은 음악의 세부사항을 정합니다.
     - 사용자가 어려워하는 경우에는 추천하여 진행합니다.
@@ -66,38 +58,34 @@ def music_making(user_input, llm, memory):
     - 가수의 음색은 어땠으면 좋을까요?
     - 가수의 성별은 어땠으면 좋을까요?
     - 이 주제에 맞는 음악요소를 추천 받고 싶나요? 
+    - 노래의 제목은 무엇으로 하고 싶으신가요?
     """
     full_few_shot_dialogue = """
     이 대화의 형식같이 대화를 진행하세요.  
     <예시 대화>
-    AI: 최근 어떤 음악 활동을 하셨나요? 예를 들면 음악 감상, 노래 부르기, 악기 연주 등이 있을 수 있어요.
-    Human: 요즘 스트레스 해소하려고 음악 감상을 자주 해요.
-    AI: 그렇군요! 요즘 주로 어떤 음악을 감상하시나요?
-    Human: 잔잔한 피아노 연주곡이나 인디 감성의 노래들을 자주 들어요.
-    AI: 평소 좋아하는 음악 장르는 어떤 스타일인가요?
-    Human: 감성적인 발라드나 어쿠스틱 느낌의 음악이 좋아요.
-    AI: 혹시 반대로 싫어하거나 피하고 싶은 음악 장르는 있을까요?
-    Human: 네, 너무 시끄러운 락이나 EDM은 잘 안 듣게 되더라고요.
-    AI: 감사합니다! 말씀해주신 취향을 바탕으로 음악을 함께 만들어볼게요.
     AI: 앞에서 이야기한 감성적인 분위기를 살려서 노래를 만든다면, 어떤 장르가 어울릴까요? 어쿠스틱 발라드, 포크 스타일 등 추천해드릴까요?
     Human: 어쿠스틱 발라드 좋을 것 같아요.
     AI: 노래의 빠르기는 느린 템포가 괜찮을까요, 아니면 약간 리듬감 있게 중간 정도로 가볼까요?
     Human: 너무 느리진 않고 중간 템포였으면 해요.
-    AI: 반주에 어떤 악기를 중심으로 하면 좋을까요? 피아노, 기타, 현악기 등이 있어요.
+    AI: 반주에 어떤 악기를 중심으로 하면 좋을까요? 피아노, 기타, 현악기 등이 있어요. 피아노: 감성을 섬세하게 표현할 수 있어요. 차분하고 잔잔한 분위기에 잘 어울려요. 기타: 따뜻하고 편안한 느낌이에요. 어쿠스틱이나 인디 감성과 잘 맞아요. 현악기: 깊고 풍부한 울림이 있어요. 감정을 더 감성적으로 전달할 수 있어요. 어떤 악기가 지금의 분위기와 가장 잘 어울릴까요?
     Human: 어쿠스틱 기타랑 피아노 조합이 좋을 것 같아요.
     AI: 음악의 분위기는 따뜻하고 위로가 되는 느낌일까요, 아니면 더 쓸쓸하고 내면적인 느낌일까요?
     Human: 따뜻하고 위로가 되는 분위기로 하고 싶어요.
     AI: 좋습니다! 마지막으로, 노래를 부를 가수의 음색과 성별은 어떻게 상상하고 계세요?
-    Human: 감성적이고 맑은 음색이면 좋겠어요. 여성보컬이면 더 좋아요. 저는 여성보컬은 조금 더 잘 들리거든요. 
+    Human: 감성적이고 맑은 음색이면 좋겠어요. 여성보컬이면 더 좋아요. 저는 여성보컬은 조금 더 잘 들리거든요.
+    AI: 그럼 노래 제목은 무엇으로 하는 것이 좋을까요?
+    Human: 위로의 말로 하는게 좋을 것 같아요.
     """
     question_prompt = PromptTemplate(
-        input_variables=["user_message", "history"],
+        input_variables=["user_message", "history","pre_slot"],
         template=question_prefix_prompt
         + "\n"
         + extraction_source_question
         + "\n"
         + full_few_shot_dialogue
         + "\n"
+        + "아래를 보고 참고하여 질문을 생성하세요."
+        + "Previous Slot: {pre_slot}\n"
         + "Chat history: {history}\n"
         + "User said: {user_message}",
     )
@@ -105,10 +93,13 @@ def music_making(user_input, llm, memory):
     memory_vars = memory.load_memory_variables({})
     history = memory_vars.get("history", "")
 
+
+
     question_chain = question_prompt | llm | StrOutputParser()
-    question = question_chain.invoke({"user_message": user_input, "history": history})
+    question = question_chain.invoke({"user_message": user_input, "history": history,"pre_slot": pre_slot})
 
     # print_memory_summary(memory)
+    memory.save_context({"input": user_input}, {"output": question})
 
     structured_llm = llm.with_structured_output(schema=OutputFormat)
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
@@ -181,7 +172,7 @@ def generate_mureka_song_and_wait(title: str, lyrics: str, music_component: str)
         return f"API Error: {e}"
 
 
-def music_creation(user_input, llm, memory):
+def music_creation(user_input, llm, memory, pre_slot):
     """
     CombinedSlot(dict) 타입의 user_input에서 가사와 음악 스타일 정보를 추출하여
     Mureka API로 음악을 생성하고, 오디오 URL을 반환합니다.
@@ -214,8 +205,8 @@ def music_creation(user_input, llm, memory):
 
     # 3. 제목 추출 (없으면 'Untitled Song')
     # TODO: slot에서 name은 user name 아닌가?
-    # => 따로 title을 안물어봐서 name을 기준으로 일단 업데이트 해두었습니다.
-    title = user_input_dict.get("name", "Untitled Song")
+    # => title로 업데이트!
+    title = user_input_dict.get("title", "Untitled Song")
 
     # 4. Mureka API 호출 및 결과 반환
     audio_url = generate_mureka_song_and_wait(title, lyrics, music_component)

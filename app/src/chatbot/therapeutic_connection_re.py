@@ -11,7 +11,7 @@ class OutputFormat(BaseModel):
     difficulty: Optional[str] = Field(default=None, description="The difficulty the user is currently experiencing in their daily life")
     expression:  Optional[str] = Field(default=None, description="A detailed expression of the user's emotions, experiences, and thoughts")
 
-def therapeutic_connection_re(user_input, summary, llm, memory) -> str:
+def therapeutic_connection_re(user_input, summary, llm, memory, pre_slot) -> str:
     therapeutic_connection_question="""
     [Session Review]
     {summary}를 보고 전 회기의 창작물을 간단하게 리뷰합니다.
@@ -52,13 +52,15 @@ def therapeutic_connection_re(user_input, summary, llm, memory) -> str:
     AI: 그런 감정은 참 깊고 중요한 이야기예요. 우리가 지금 나누고 있는 이 대화 속 감정들, 생각들… 이걸 바탕으로 음악을 한번 만들어볼까요?
     """
     question_prompt = PromptTemplate(
-        input_variables=["user_message", "history", "summary"],
+        input_variables=["user_message", "history", "summary","pre_slot"],
         template=question_prefix_prompt
         + "\n"
         + therapeutic_connection_question
         + "\n"
         + full_few_shot_dialogue
         + "\n"
+        + "아래를 보고 참고하여 질문을 생성하세요."
+        + "Previous Slot: {pre_slot}\n"
         + "Chat history: {history}\n"
         + "User said: {user_message}",
     )
@@ -67,7 +69,9 @@ def therapeutic_connection_re(user_input, summary, llm, memory) -> str:
     history = memory_vars.get("history", "")
 
     question_chain = question_prompt | llm | StrOutputParser()
-    question = question_chain.invoke({"user_message": user_input, "history": history, "summary":summary})
+    question = question_chain.invoke({"user_message": user_input, "history": history, "summary":summary, "pre_slot": pre_slot})
+
+    memory.save_context({"input": user_input}, {"output": question})
 
     retrieved_memory_variables = memory.load_memory_variables({})
     current_chat_history = retrieved_memory_variables.get("history", "") # 'history' 키로 값을 가져오고, 없으면 빈 문자열

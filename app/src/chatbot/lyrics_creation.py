@@ -31,7 +31,7 @@ class OutputFormat(BaseModel):
     lyrics_content: Optional[str] = Field(default=None, description="Detailed sentences the user wants to include in the lyrics")
 
 
-def extraction_source(user_input, llm, memory):
+def extraction_source(user_input, llm, memory, pre_slot):
     extraction_source_question = f"""
     [Making Concept Task]
     - 노래 가사에 대한 주제를 정합니다.
@@ -54,6 +54,7 @@ def extraction_source(user_input, llm, memory):
     - 가사에 대한 주요 아이디어를 사용자에게 물어보세요.
     - 최대한 많은 아이디어를 꺼낼 수 있도록 격려하고 질문하세요.
     - 시각적인 비유로 물어보는 것은 좋은 접근입니다.
+    - 제안을 할때는 사용자가 선택할 수 있는 옵션을 제시하는 것과 동시에 현재 가사에 어울리는 옵션을 이유와 함께 제시해주세요. 
     Example:
     - 주제를 표현하기 위해서 어떤 단어가 떠오르시나요?
     - 주제를 표현하기 위해서 어떤 느낌이 떠오르시나요?
@@ -75,20 +76,22 @@ def extraction_source(user_input, llm, memory):
     Human: 안좋은 기억은 잊고 다시 시작해 이런 키워드가 떠올라요.
     AI: 좋은 키워드네요! 이 키워드를 바탕으로 가사의 초안을 작성해볼까요? 혹시 생각나는 가사가 있나요? 
     Human: 음.. 어려워요.
-    AI: 그러면 그런 키워드를 생각하면 생각나는 이미지가 있나요? 예를 들어 떠오르는 해, 새벽빛처럼요.
+    AI: 그러면 그런 키워드를 생각하면서 이미지를 떠올려봅시다. 예를 들어 떠오르는 해, 새벽빛 같은 것들이요. 이런 이미지는 과거를 뒤로하고 새롭게 다시 시작하고 싶은 마음과 잘 어울리는 것 같아요. 어둠이 지나고 다시 빛이 찾아오는 느낌이, 지금 말씀해주신 감정과 닮아 있어서요. 혹시 이런 이미지들 중에서 마음에 와닿는 게 있을까요? 아니면 떠오르는 다른 이미지가 있을까요?
     Human: 떠오르는 해가 생각나요. 
     AI: 떠오르는 해는 빛나는 미래와 잘 어울리는 것 같아요. 혹시 이 이미지를 떠올렸을때 가사에 들어갈 짧은 문장이나 문구가 떠오르시나요? 
     Human: 음.. 지나간 아픔은 뒤에 두고 지금부터는 나를 믿어 다시 시작해, 다시 빛나 내일은 분명 달라 이런 가사가 떠올라요
     AI: 좋아요! 이 문장과 키워드, 이미지를 바탕으로 가사를 만들어 드릴게요. 
     """
     question_prompt = PromptTemplate(
-        input_variables=["user_message", "history"],
+        input_variables=["user_message", "history","pre_slot"],
         template=question_prefix_prompt
         + "\n"
         + extraction_source_question
         + "\n"
         + full_few_shot_dialogue
         + "\n"
+        + "아래를 보고 참고하여 질문을 생성하세요."
+        + "Previous Slot: {pre_slot}\n"
         + "Chat history: {history}\n"
         + "User said: {user_message}",
     )
@@ -97,7 +100,7 @@ def extraction_source(user_input, llm, memory):
     history = memory_vars.get("history", "")
 
     question_chain = question_prompt | llm | StrOutputParser()
-    question = question_chain.invoke({"user_message": user_input, "history": history})
+    question = question_chain.invoke({"user_message": user_input, "history": history,"pre_slot": pre_slot})
 
     memory.save_context({"input": user_input}, {"output": question})
 
@@ -116,7 +119,7 @@ class LyricsOutput(BaseModel):
     lyrics: Optional[str] = Field(default=None, description="AI-generated lyrics")
 
 
-def making_lyrics(user_input, llm, memory):
+def making_lyrics(user_input, llm, memory, pre_slot):
     making_lyrics_prompt = f"""
     [Lyrics Generative Task]
     - slot을 바탕으로 가사를 생성합니다.
@@ -181,10 +184,7 @@ def making_lyrics(user_input, llm, memory):
 
     # TODO: 여기서 메모리 업데이트가 필요함? -> func 내부에서 (전부 다) save_context하는 거랑 main에서 하는 거랑 중복되지 않는 지 확인할 것
     memory.save_context({"input": user_input}, {"output": question})
-
-
     slot = LyricsOutput(lyrics=question)
-    print(slot)
-    print(type(slot))
+
     return question, slot
 
