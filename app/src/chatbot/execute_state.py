@@ -27,7 +27,6 @@ def execute_state(
 ) -> Tuple[str, int, CombinedSlot]:
     flag = 0
 
-    state=State.TERMINATION
     # state지정
     if state == State.THERAPEUTIC_CONNECTION:
         func = therapeutic_connection
@@ -56,11 +55,8 @@ def execute_state(
     if state==State.TERMINATION:
         flag=0
 
-        #test
-        sid="41dde5db-0d05-45d8-a2aa-946bb87b7182"
         chat_records_response=db_manager.search("chat", "session_id", sid, SEARCH_OPTION.ALL.value).data
         dialogue = ""
-        print(chat_records_response)
         # 검색 결과가 있는지 확인합니다.
         if chat_records_response:
             # 각 채팅 레코드(딕셔너리)를 순회합니다.
@@ -77,7 +73,6 @@ def execute_state(
             print(f"세션 ID '{sid}'에 대한 채팅 기록이 없습니다.")
             dialogue = "" # 대화 기록이 없으면 빈 문자열로 설정
         
-        print(dialogue)
         response, summary = func(dialogue, llm, slot)
 
         #summary db 저장        
