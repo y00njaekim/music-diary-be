@@ -27,6 +27,7 @@ def execute_state(
 ) -> Tuple[str, int, CombinedSlot]:
     flag = 0
 
+    state=State.TERMINATION
     # state지정
     if state == State.THERAPEUTIC_CONNECTION:
         func = therapeutic_connection
@@ -55,6 +56,8 @@ def execute_state(
     if state==State.TERMINATION:
         flag=0
 
+        #test
+        sid="41dde5db-0d05-45d8-a2aa-946bb87b7182"
         chat_records_response=db_manager.search("chat", "session_id", sid, SEARCH_OPTION.ALL.value).data
         dialogue = ""
         print(chat_records_response)
@@ -79,10 +82,12 @@ def execute_state(
 
         #summary db 저장        
         latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
-        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['keywords']
+        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['keywords_id']
         latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
         latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0]['music_id']
-        db_manager.insert_summary(sid,summary,latest_chat,latest_music,"",latest_keywords)
+        latest_state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['state_id']
+
+        db_manager.insert_summary(sid,summary,latest_chat,latest_music,latest_state,latest_keywords)
 
         return response, flag, slot
     
