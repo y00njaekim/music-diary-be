@@ -112,7 +112,12 @@ def analyze_music():
         instruments = result["Instruments"]  # 예: ["piano","drum"]
         emotions = result["Emotions"]  # 예: ["happy","excited"]
 
-        music_id = db_manager.search("music", "url", music_path, SEARCH_OPTION.LATEST.value).data[0]["music_id"]
+
+        # 쿼리 파라미터에서 sid 추출 및 출력
+        front_sid = request.args.get("sid")
+        sid = db_manager.search("diary","user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid).data[0]['session_id']
+        lyrics_id = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
+        music_id = db_manager.search("music", "lyrics_id", lyrics_id, SEARCH_OPTION.LATEST.value).data[0]["music_id"]
         _ = db_manager.insert_music_vis(music_id, result)
 
         # 리스트인 Instruments, Emotions를 문자열로 합치고, BPM을 포함해 하나의 문자열로 만듭니다.
@@ -136,31 +141,34 @@ def analyze_music():
 @verify_jwt
 def generate_response():
     try:
-        # 쿼리 파라미터에서 sid 추출 및 출력
-        front_sid = request.args.get("sid")
-        sid = db_manager.get_current_session()
-
-        if front_sid != sid:
-            raise ValueError("It seems like the session has been changed. Please check the session ID.")
-
-        state_res = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value)
-        pre_state = state_res.data[0]["state_name"]
-        state_id = state_res.data[0]["state_id"]
-        slot_rss = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value)
-        slot = json.loads(slot_rss.data[0]['keywords'])
-        # print(f"[generate_response] sid: {sid}")
-        # POST 데이터 가져오기
-        post_data = request.get_json()
-        if post_data is None:
-            raise ValueError("JSON 데이터가 제공되지 않았습니다")
-
         # JWT에서 추출한 사용자 정보
         jwt_user = request.jwt_user
         user_id = jwt_user["id"]
         user_name = jwt_user["name"]
         user_email = jwt_user["email"]
 
-        # 필수 파라미터 추출
+        # 쿼리 파라미터에서 sid 추출 및 출력
+        front_sid = request.args.get("sid")
+        sid = db_manager.search("diary","user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+
+
+        if not sid.data:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
+
+        sid=sid.data[0]["session_id"]
+        state_res = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        pre_state = state_res.data[0]["state_name"]
+        state_id = state_res.data[0]["state_id"]
+        slot_rss = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        slot = slot_rss.data[0]['keywords']
+        # print(f"[generate_response] sid: {sid}")
+        # POST 데이터 가져오기
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+
+        # 필수 파라미터 추출어
         user_input = post_data.get("input")
         state = post_data.get("state")
         turn = post_data.get("turn", 0)
@@ -193,7 +201,8 @@ def generate_response():
         memory = user_memories[user_id]
 
         if turn == 0:
-            memory.clear()
+            if state!="making_lyrics":
+                memory.clear()
 
         print(f"slot: {slot}")
         # execute_state 함수 실행
@@ -215,7 +224,7 @@ def generate_response():
 
         # 대화 컨텍스트를 메모리에 저장 (save_context 메서드 사용)
         # 이렇게 하면 자동으로 요약이 업데이트됩니다
-        memory.save_context(inputs={"input": user_input}, outputs={"output": response})
+        # memory.save_context(inputs={"input": user_input}, outputs={"output": response})
 
         chat_summary[user_id].save_context(inputs={"input": user_input}, outputs={"output": response})
         sum_var = chat_summary[user_id].load_memory_variables(inputs={})
@@ -253,12 +262,18 @@ def generate_response():
 def change_lyrics_api():
     """가사 변경 API"""
     try:
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+        # 쿼리 파라미터에서 sid 추출 및 출력
         front_sid = request.args.get("sid")
-        sid = db_manager.get_current_session()
-        uid = db_manager.get_current_user()
+        sid = db_manager.search("diary","user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
 
-        if front_sid != sid:
+
+        if not sid.data:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
+        sid=sid.data[0]["session_id"]
+
         post_data = request.get_json()
         if not post_data:
             return jsonify({"error": "JSON 데이터가 제공되지 않았습니다"}), 400
@@ -278,19 +293,20 @@ def change_lyrics_api():
         _ = db_manager.insert_chat(sid, result_lyrics, False)
         _ = db_manager.insert_lyrics(sid, chat_id, result_lyrics)
 
-        chat_summary[uid].save_context(inputs={"input": user_input}, outputs={"output": result_lyrics})
-        sum_var = chat_summary[uid].load_memory_variables(inputs={})
-        summary = sum_var.get("chat", "[현재 저장된 채팅 없음]")
+        # summary -> termination state에서 따로 진행
+        # chat_summary[uid].save_context(inputs={"input": user_input}, outputs={"output": result_lyrics})
+        # sum_var = chat_summary[uid].load_memory_variables(inputs={})
+        # summary = sum_var.get("chat", "[현재 저장된 채팅 없음]")
 
-        latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
-        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0][
-            'keywords']
-        latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
-        latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0][
-            'music_id']
-        latest_state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['state_id']
+        # latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['chat_id']
+        # latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0][
+        #     'keywords']
+        # latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['lyrics_id']
+        # latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0][
+        #     'music_id']
+        # latest_state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]['state_id']
 
-        _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, latest_state, latest_keywords)
+        # _ = db_manager.insert_summary(sid, summary, latest_chat, latest_music, latest_state, latest_keywords)
 
         return jsonify({"changed_lyrics": result_lyrics}), 200
 
@@ -304,11 +320,16 @@ def change_lyrics_api():
 @verify_jwt
 def next_state():
     try:
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+        # 쿼리 파라미터에서 sid 추출 및 출력
         front_sid = request.args.get("sid")
-        sid = db_manager.get_current_session()
+        sid = db_manager.search("diary","user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
 
-        if front_sid != sid:
+        if not sid.data:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
+        sid=sid.data[0]["session_id"]
 
         post_data = request.get_json()
         if post_data is None:
@@ -384,9 +405,8 @@ def start_session():
         # 세션 ID 생성
         response = db_manager.insert_diary(user_id)
         session_id = response.data[0]['session_id']
-        db_manager.update_current_info(user_id, session_id)
         db_manager.insert_state(session_id, State.THERAPEUTIC_CONNECTION.value)
-        db_manager.insert_keywords(session_id, json.dumps({}))
+        db_manager.insert_keywords(session_id, {})
         # session_id = str(uuid.uuid4())
 
         # 사용자별 세션 저장소에 저장 (선택적)

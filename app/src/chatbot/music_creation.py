@@ -226,7 +226,7 @@ def music_creation(user_input, llm, memory):
         response = f"노래 생성에 실패했습니다: {audio_url}"
 
     # history 저장
-    # memory.save_context({"input": user_input}, {"output": response})
+    memory.save_context({"input": user_input}, {"output": response})
     memory_vars = memory.load_memory_variables({})
     history = memory_vars.get("history", "")
 

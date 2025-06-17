@@ -8,6 +8,7 @@ from .types import CombinedSlot, State
 import json
 from typing import Tuple
 from langchain_core.memory import BaseMemory
+from flask import request
 
 STATE_NEXT = {
     State.THERAPEUTIC_CONNECTION: State.EXTRACTION_SOURCE,
@@ -57,15 +58,27 @@ def execute_state(
         if v is None:
             none_fields += 1
 
-    sid = db_manager.get_current_session()
-    _ = db_manager.insert_chat(sid, user_input, True)
+    # JWT에서 추출한 사용자 정보
+    jwt_user = request.jwt_user
+    user_id = jwt_user["id"]
+
+    # 쿼리 파라미터에서 sid 추출 및 출력
+    front_sid = request.args.get("sid")
+    sid = db_manager.search("diary","user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+    sid=sid.data[0]['session_id']
+
+    chat_res = db_manager.insert_chat(sid, user_input, True)
+    chat_id = chat_res.data[0]["chat_id"]
     _ = db_manager.insert_chat(sid, response, False)
     _ = db_manager.insert_keywords(sid, slot)
 
+
     if state == State.MAKING_LYRICS:
         flag = 1
-        lyrics = slot["lyrics"]
-        _ = db_manager.insert_lyrics(sid, lyrics)
+
+        lyrics = state_slot.lyrics
+        print(lyrics)
+        _ = db_manager.insert_lyrics(sid, chat_id, lyrics)
 
     # TODO: 노래 생성에 실패해도 그냥 다음 state로 넘어가???
     if state == State.MUSIC_CREATION:
@@ -81,7 +94,7 @@ def execute_state(
         # => 제일 마지막으로 저장된 lyrics을 무조건적으로 사용한다는 시나리오로 가야할 것 같습니다.
         lyrics_id = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
         url = response.split(":")[-1].strip()
-        _ = db_manager.insert_music(sid, lyrics_id, style, url, "").data[0]["music_id"]
+        _ = db_manager.insert_music(lyrics_id, style, url, "").data[0]["music_id"]
 
     # 다음 state로 넘어갈지 flag
     if none_fields == 0:
@@ -90,7 +103,8 @@ def execute_state(
         flag = 1
 
     if turn > 1: # TODO: check 1 -> 5?
-        print("over the 5 turn")
-        flag = 1
+            
+            print("over the 5 turn")
+            flag = 1
 
     return response, flag, slot

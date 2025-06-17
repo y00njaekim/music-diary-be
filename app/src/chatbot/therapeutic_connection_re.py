@@ -69,8 +69,10 @@ def therapeutic_connection_re(user_input, summary, llm, memory) -> str:
     question_chain = question_prompt | llm | StrOutputParser()
     question = question_chain.invoke({"user_message": user_input, "history": history, "summary":summary})
 
+    retrieved_memory_variables = memory.load_memory_variables({})
+    current_chat_history = retrieved_memory_variables.get("history", "") # 'history' 키로 값을 가져오고, 없으면 빈 문자열
     structured_llm = llm.with_structured_output(schema=OutputFormat)
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
-    slot = structured_llm.invoke(slot_prompt.invoke({"history": history}))
+    slot = structured_llm.invoke(slot_prompt.invoke({"history": current_chat_history}))
 
     return question, slot

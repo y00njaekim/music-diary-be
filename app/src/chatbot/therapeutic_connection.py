@@ -122,14 +122,18 @@ def therapeutic_connection(user_input, llm, memory) -> str:
 
     # eval_chain= eval_prompt | llm | StrOutputParser()
     # eval=eval_chain.invoke({"history": history, "question": question, "bot_questions": bot_question,"user_input":user_input,})
+    memory.save_context({"input": user_input}, {"output": question})
 
-    # print_memory_summary(memory)
+    print_memory_summary(memory)
     # print("---")
     # print("조건 ", bot_question)
     # print("CoVe Q: ", question)
     # print("----")
+    retrieved_memory_variables = memory.load_memory_variables({})
+    current_chat_history = retrieved_memory_variables.get("history", "") # 'history' 키로 값을 가져오고, 없으면 빈 문자열
+
     structured_llm = llm.with_structured_output(schema=OutputFormat)
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
-    slot = structured_llm.invoke(slot_prompt.invoke({"history": history}))
+    slot = structured_llm.invoke(slot_prompt.invoke({"history": current_chat_history}))
 
     return question, slot

@@ -30,9 +30,6 @@ class DBManager:
         key: str = os.environ.get("SUPABASE_KEY")
         self.supabase: Client = create_client(url, key)
 
-        self.current_user_id: str = None
-        self.current_session_id: str = None
-
     def _insert(self, table: str, data: dict):
         response = self.supabase.table(table).insert(data).execute()
         return response
@@ -135,12 +132,12 @@ class DBManager:
 
         return self._search(table, data)
 
-    def update_current_info(self, user_id: str, session_id: str):
-        self.current_user_id = user_id
-        self.current_session_id = session_id
+    # def update_current_info(self, user_id: str, session_id: str):
+    #     self.current_user_id = user_id
+    #     self.current_session_id = session_id
 
-    def get_current_user(self):
-        return self.current_user_id
+    # def get_current_user(self):
+    #     return self.current_user_id
 
-    def get_current_session(self):
-        return self.current_session_id
+    # def get_current_session(self):
+    #     return self.current_session_id
