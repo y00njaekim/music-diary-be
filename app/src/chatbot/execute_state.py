@@ -96,11 +96,18 @@ def execute_state(
 
         return response, flag, slot
 
+    
     # 답변 생성
     if turn == 0:
-        response, state_slot = func(json.dumps(slot, ensure_ascii=False), llm, memory, slot)
+        if (state == State.THERAPEUTIC_CONNECTION) and (summary != None):
+            response, state_slot = func(json.dumps(slot, ensure_ascii=False), summary,llm, memory, slot)
+        else:
+            response, state_slot = func(json.dumps(slot, ensure_ascii=False),llm, memory, slot)
     else:
-        response, state_slot = func(user_input, llm, memory, slot)
+        if (state == State.THERAPEUTIC_CONNECTION) and (summary != None):
+            response, state_slot = func(user_input, summary,llm, memory, slot)
+        else:
+            response, state_slot = func(user_input, llm, memory, slot)
 
     none_fields = 0
     for k, v in state_slot.model_dump().items():
