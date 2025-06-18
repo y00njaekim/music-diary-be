@@ -122,7 +122,8 @@ def analyze_music():
         final_str = f"BPM: {bpm}, Instruments: {', '.join(instruments)}, Emotions: {', '.join(emotions)}"
         print(f"분석 요약: {final_str}")
         # 임시 파일 삭제
-        os.remove("temp_music_file.wav")
+        if os.path.exists("temp_music_file.wav"):
+            os.remove("temp_music_file.wav")
 
         return jsonify(result), 200
     except ValueError as ve:
