@@ -112,6 +112,23 @@ class DBManager:
             .execute()
         )
 
+    def search_summaries_by_user(self, user_id: str):
+        """
+        user_id를 기반으로 모든 요약(summary)을 가져옵니다.
+        summary와 diary 테이블을 inner join하여 조회합니다.
+        """
+        # `summary` 테이블에서 `summary_id`, `summary`, `created_at`를 선택하고,
+        # `diary` 테이블과 내부 조인하여 `user_id`로 필터링합니다.
+        # 생성일(`created_at`)을 기준으로 내림차순 정렬합니다.
+        response = (
+            self.supabase.table("summary")
+            .select("summary_id, summary, created_at, diary!inner(user_id)")
+            .eq("diary.user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response
+
     def search(self, table: str, reference: str, ref_id: str, search_option: str, **kwargs: dict):
         """
         kwargs:

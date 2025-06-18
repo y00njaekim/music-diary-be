@@ -337,6 +337,22 @@ def next_state():
         return jsonify(error_message), 500
 
 
+@app.route("/library/summaries", methods=["GET"])
+@verify_jwt
+def get_summaries():
+    try:
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        summaries_res = db_manager.search_summaries_by_user(user_id)
+        return jsonify(summaries_res.data if summaries_res.data else []), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /library/summaries: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/move_to_extraction_source", methods=["POST"])
 @verify_jwt
 def move_to_extraction_source():
