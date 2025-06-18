@@ -68,7 +68,7 @@ class DBManager:
             },
         )
 
-    def insert_lyrics(self, session_id: str, chat_id: str, lyrics: str):
+    def insert_lyrics(self, session_id: str, chat_id: Optional[str], lyrics: str):
         return self._insert(
             "lyrics",
             {

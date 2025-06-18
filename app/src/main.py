@@ -272,10 +272,8 @@ def change_lyrics_api():
         user_input = f"{change_lyrics} -> {user_lyric_prompt}"
         result_lyrics = lyrics_change(total_lyrics=total_lyrics, change_lyrics=change_lyrics, user_lyric_prompt=user_lyric_prompt)
 
-        chat_res = db_manager.insert_chat(sid, user_input, True)
-        chat_id = chat_res.data[0]["chat_id"]
+        _ = db_manager.insert_chat(sid, user_input, True)
         _ = db_manager.insert_chat(sid, result_lyrics, False)
-        _ = db_manager.insert_lyrics(sid, chat_id, result_lyrics)
 
         return jsonify({"changed_lyrics": result_lyrics}), 200
 
@@ -446,21 +444,7 @@ def save_lyrics_api():
         jwt_user = request.jwt_user
         user_id = jwt_user["id"]
 
-        # 메모리 저장 (DB 도입 전 임시)
-        saved_lyrics.setdefault(user_id, {})[sid] = {
-            "lyrics": lyrics,
-            "timestamp": datetime.datetime.utcnow().isoformat(),
-        }
-
-        # 파일로도 백업 (optional)
-        try:
-            os.makedirs("saved_lyrics", exist_ok=True)
-            file_path = os.path.join("saved_lyrics", f"{user_id}_{sid}.txt")
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(lyrics)
-        except Exception as fe:
-            # 파일 저장 실패해도 치명적이지 않으므로 로그만 출력
-            print(f"[save_lyrics_api] 파일 저장 실패: {fe}")
+        _ = db_manager.insert_lyrics(sid, None, lyrics)
 
         return jsonify({"status": "success"}), 200
 
