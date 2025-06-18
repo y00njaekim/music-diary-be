@@ -446,6 +446,12 @@ def save_lyrics_api():
 
         _ = db_manager.insert_lyrics(sid, None, lyrics)
 
+        slot_rss = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value)
+        slot = slot_rss.data[0]["keywords"]
+        slot["lyrics"] = lyrics
+
+        _ = db_manager.insert_keywords(sid, slot)
+
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
