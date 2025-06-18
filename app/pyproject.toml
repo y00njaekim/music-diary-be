@@ -19,6 +19,10 @@ pyjwt = "^2.10.1"
 gunicorn = "^23.0.0"
 supabase = "^2.15.3"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+python-dotenv = "^1.1.0"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
