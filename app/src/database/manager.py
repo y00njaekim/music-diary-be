@@ -13,16 +13,18 @@ class SEARCH_OPTION(Enum):
     LAST_K = 2
     LATEST = 3
 
+
 REFERENCE_RULE = {
-    'diary': 'user_id',
-    'chat': 'session_id',
-    'keywords': 'session_id',
-    'lyrics': 'session_id',
-    'state': 'session_id',
-    'summary': 'session_id',
-    'music': 'lyrics_id',
-    'musicVis': 'music_id',
+    "diary": "user_id",
+    "chat": "session_id",
+    "keywords": "session_id",
+    "lyrics": "session_id",
+    "state": "session_id",
+    "summary": "session_id",
+    "music": "lyrics_id",
+    "musicVis": "music_id",
 }
+
 
 class DBManager:
     def __init__(self):
@@ -38,13 +40,13 @@ class DBManager:
         query = self.supabase.table(table).select("*")
 
         for column, value in data.items():
-            if column == 'n':
+            if column == "n":
                 continue
             query = query.eq(column, value)
 
         # if searching condition is 'the latest' or 'last-k'
-        if 'n' in data:
-            query = query.order("created_at", desc=True).limit(data['n'])
+        if "n" in data:
+            query = query.order("created_at", desc=True).limit(data["n"])
 
         return query.execute()
 
@@ -58,77 +60,85 @@ class DBManager:
         return self._insert("state", {"session_id": session_id, "state_name": state_name})
 
     def insert_keywords(self, session_id: str, keywords: CombinedSlot):
-        return self._insert('keywords',
-                            {
-                                "session_id": session_id,
-                                "keywords": keywords,
-                            })
+        return self._insert(
+            "keywords",
+            {
+                "session_id": session_id,
+                "keywords": keywords,
+            },
+        )
 
     def insert_lyrics(self, session_id: str, chat_id: str, lyrics: str):
-        return self._insert("lyrics",
-                            {
-                                "session_id": session_id,
-                                "chat_id": chat_id,
-                                "lyrics": lyrics,
-                            })
+        return self._insert(
+            "lyrics",
+            {
+                "session_id": session_id,
+                "chat_id": chat_id,
+                "lyrics": lyrics,
+            },
+        )
 
     def insert_music(self, lyrics_id: str, prompt: str, url: str, title: str):
-        return self._insert("music",
-                            {
-                                "lyrics_id": lyrics_id,
-                                "prompt": prompt,
-                                "url": url,
-                                "title": title
-                            })
+        return self._insert("music", {"lyrics_id": lyrics_id, "prompt": prompt, "url": url, "title": title})
 
     def insert_music_vis(self, music_id: str, vis_data: dict):
-        return self._insert("musicVis",
-                            {
-                                "music_id": music_id,
-                                "vis_data": vis_data
-                            })
+        return self._insert("musicVis", {"music_id": music_id, "vis_data": vis_data})
 
-    def insert_summary(self, session_id: str, summary: str,
-                       latest_chat: str, latest_music: Optional[str], latest_state: str, latest_keywords: str):
-        return self._insert("summary",
-                            {
-                                "session_id": session_id,
-                                "summary": summary,
-                                "latest_chat": latest_chat,
-                                "latest_music": latest_music,
-                                "latest_state": latest_state,
-                                "latest_keywords": latest_keywords
-                            })
+    def insert_summary(self, session_id: str, summary: str, latest_chat: str, latest_music: Optional[str], latest_state: str, latest_keywords: str):
+        return self._insert(
+            "summary",
+            {
+                "session_id": session_id,
+                "summary": summary,
+                "latest_chat": latest_chat,
+                "latest_music": latest_music,
+                "latest_state": latest_state,
+                "latest_keywords": latest_keywords,
+            },
+        )
+
+    def search_latest_summary(self, user_id: str):
+        """
+        user_id를 기반으로 가장 최근의 요약(summary)을 가져옵니다.
+        summary와 diary 테이블을 inner join하여 조회합니다.
+        """
+        return (
+            self.supabase.table("summary")
+            .select("summary, diary!inner(*)")
+            .eq("diary.user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .maybe_single()
+            .execute()
+        )
 
     def search(self, table: str, reference: str, ref_id: str, search_option: str, **kwargs: dict):
-        '''
-            kwargs:
-                id: for search by id
-                n: for search by recent n items
-        '''
+        """
+        kwargs:
+            id: for search by id
+            n: for search by recent n items
+        """
 
         if reference is not REFERENCE_RULE[table]:
             raise ValueError(f"{table} query must refer to '{REFERENCE_RULE[table]}'")
 
-        data = {
-            reference: ref_id
-        }
+        data = {reference: ref_id}
 
         if search_option == SEARCH_OPTION.ALL:
             pass
         elif search_option == SEARCH_OPTION.ID:
-            if 'id' not in kwargs:
+            if "id" not in kwargs:
                 raise ValueError("Need the argument 'session_id' to query by id")
-            if table == 'diary':
-                data[f'session_id'] = kwargs['id']
+            if table == "diary":
+                data[f"session_id"] = kwargs["id"]
             else:
-                data[f'{table}_id'] = kwargs['id']
+                data[f"{table}_id"] = kwargs["id"]
         elif search_option == SEARCH_OPTION.LAST_K:
-            if 'n' not in kwargs:
+            if "n" not in kwargs:
                 raise ValueError("Need the argument 'n' to query the last-n items")
-            data['n'] = kwargs['n']
+            data["n"] = kwargs["n"]
         else:  # Latest
-            data['n'] = 1
+            data["n"] = 1
 
         return self._search(table, data)
 
