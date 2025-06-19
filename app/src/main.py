@@ -366,7 +366,7 @@ def move_to_extraction_source():
 
         # 쿼리 파라미터에서 sid 추출 및 출력
         front_sid = request.args.get("sid")
-        sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid).data[0]["session_id"]
+        sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
 
         if not sid.data:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
