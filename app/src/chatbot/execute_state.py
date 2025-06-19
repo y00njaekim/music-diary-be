@@ -156,7 +156,13 @@ def execute_state(
 
     if turn > 1:  # TODO: check 1 -> 5?
 
-        print("over the 5 turn")
-        flag = 1
+        if state==State.EXTRACTION_SOURCE:
+            if turn>9:
+                flag=1
+        else:
+            print("over the 5 turn")
+            flag = 1
+
+
 
     return response, flag, slot
