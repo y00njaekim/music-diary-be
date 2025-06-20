@@ -45,5 +45,7 @@ def termination(total_dialogue: str, llm, pre_slot) -> str:
     summary_chain = summary_prompt | llm | StrOutputParser()
     summary = summary_chain.invoke({"total_dialogue": total_dialogue,"pre_slot": pre_slot })
     
+
+    response=summary+'\n'+question+'\n'+'♫ 아래의 설문주소를 클릭하여 설문을 진행해주세요.♫'+'\n'+'https://docs.google.com/forms/u/0/d/1a_huYPVyQjLC-VOHZ5zzjpbayVjhuc55QAWg1tsFw6w/preview'
     
-    return summary+'\n'+question, summary
+    return response, summary
