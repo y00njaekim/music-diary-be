@@ -28,6 +28,8 @@ class MusicMakingSlot(TypedDict):
     mood: str
     vocal: str
     tempo: str
+    title: str
+
 
 
 class MusicDiscussionSlot(TypedDict):
