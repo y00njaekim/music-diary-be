@@ -352,6 +352,48 @@ def get_summaries():
         return jsonify(error_message), 500
 
 
+@app.route("/library/summary/<summary_id>/music", methods=["GET"])
+@verify_jwt
+def get_music_details_for_summary(summary_id):
+    try:
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        music_details_res = db_manager.search_music_details_by_summary(summary_id, user_id)
+
+        if not music_details_res.data or not music_details_res.data.get("latest_music"):
+            return jsonify({"message": "해당 요약에 연결된 음악 정보가 없습니다."}), 404
+
+        latest_music = music_details_res.data["latest_music"]
+        music_vis_list = latest_music.get("musicVis", [])
+        vis_data = music_vis_list[0].get("vis_data") if music_vis_list else None
+
+        response_data = {"url": latest_music.get("url"), "vis_data": vis_data}
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /library/summary/{summary_id}/music: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
+@app.route("/library/musics", methods=["GET"])
+@verify_jwt
+def get_musics():
+    try:
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        musics_res = db_manager.search_musics_by_user(user_id)
+        return jsonify(musics_res.data if musics_res.data else []), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /library/musics: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/move_to_extraction_source", methods=["POST"])
 @verify_jwt
 def move_to_extraction_source():
@@ -376,6 +418,78 @@ def move_to_extraction_source():
 
         # extraction_source 상태로 이동
         response_data = {"state": "extraction_source", "turn": 0}
+        return jsonify(response_data), 200
+
+    except ValueError as ve:
+        error_message = {"error": str(ve)}
+        print(f"ValueError: {str(ve)}")
+        return jsonify(error_message), 400
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
+@app.route("/move_to_making_lyrics", methods=["POST"])
+@verify_jwt
+def move_to_making_lyrics():
+    try:
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 쿼리 파라미터에서 sid 추출 및 출력
+        front_sid = request.args.get("sid")
+        sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+
+        if not sid.data:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
+        sid = sid.data[0]["session_id"]
+
+        _ = db_manager.insert_state(sid, "making_lyrics")
+
+        # making_lyrics 상태로 이동
+        response_data = {"state": "making_lyrics", "turn": 0}
+        return jsonify(response_data), 200
+
+    except ValueError as ve:
+        error_message = {"error": str(ve)}
+        print(f"ValueError: {str(ve)}")
+        return jsonify(error_message), 400
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
+@app.route("/move_to_music_making", methods=["POST"])
+@verify_jwt
+def move_to_music_making():
+    try:
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 쿼리 파라미터에서 sid 추출 및 출력
+        front_sid = request.args.get("sid")
+        sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+
+        if not sid.data:
+            raise ValueError("It seems like the session has been changed. Please check the session ID.")
+        sid = sid.data[0]["session_id"]
+
+        _ = db_manager.insert_state(sid, "music_making")
+
+        # music_making 상태로 이동
+        response_data = {"state": "music_making", "turn": 0}
         return jsonify(response_data), 200
 
     except ValueError as ve:

@@ -129,6 +129,20 @@ class DBManager:
         )
         return response
 
+    def search_music_details_by_summary(self, summary_id: str, user_id: str):
+        """
+        summary_id와 user_id를 기반으로 연결된 음악(music)과 시각화 데이터(musicVis)를 가져옵니다.
+        """
+        response = (
+            self.supabase.table("summary")
+            .select("latest_music(url, musicVis(vis_data)), diary!inner(user_id)")
+            .eq("summary_id", summary_id)
+            .eq("diary.user_id", user_id)
+            .single()
+            .execute()
+        )
+        return response
+
     def search(self, table: str, reference: str, ref_id: str, search_option: str, **kwargs: dict):
         """
         kwargs:

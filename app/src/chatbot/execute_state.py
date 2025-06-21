@@ -96,16 +96,15 @@ def execute_state(
 
         return response, flag, slot
 
-    
     # 답변 생성
     if turn == 0:
         if (state == State.THERAPEUTIC_CONNECTION) and (summary != None):
-            response, state_slot = func(json.dumps(slot, ensure_ascii=False), summary,llm, memory, slot)
+            response, state_slot = func(json.dumps(slot, ensure_ascii=False), summary, llm, memory, slot)
         else:
-            response, state_slot = func(json.dumps(slot, ensure_ascii=False),llm, memory, slot)
+            response, state_slot = func(json.dumps(slot, ensure_ascii=False), llm, memory, slot)
     else:
         if (state == State.THERAPEUTIC_CONNECTION) and (summary != None):
-            response, state_slot = func(user_input, summary,llm, memory, slot)
+            response, state_slot = func(user_input, summary, llm, memory, slot)
         else:
             response, state_slot = func(user_input, llm, memory, slot)
 
@@ -154,16 +153,14 @@ def execute_state(
         print("all slot filled")
         flag = 1
 
-    if turn > 6:  # TODO: check 1 -> 5?
+    if turn > 1:  # TODO: check 1 -> 5?
 
         if state in (State.EXTRACTION_SOURCE, State.MUSIC_DISCUSSION):
-            if turn>9:
-                flag=1
+            if turn > 1:
+                flag = 1
 
         else:
             print("over the defalut turn")
             flag = 1
-
-
 
     return response, flag, slot
