@@ -6,7 +6,7 @@ from .music_creation import music_making, music_creation
 from .music_discussion import music_discussion
 from .termination import termination
 from database.manager import DBManager, SEARCH_OPTION
-from .types import CombinedSlot, State
+from .types import CombinedSlot, State, MusicMakingSlot, MusicDiscussionSlot
 import json
 from typing import Tuple
 from langchain_core.memory import BaseMemory
@@ -62,6 +62,18 @@ def execute_state(
     sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
     sid = sid.data[0]["session_id"]
 
+
+    #recreation시 slot 초기화
+    if state==State.MUSIC_CREATION:
+        if slot.get("individual_emotion")!=None:
+            music_making_keys=MusicMakingSlot.keys()
+            music_discussion_keys=MusicDiscussionSlot.keys()
+
+            for k in music_making_keys:
+                slot[k]=None
+            for k in music_discussion_keys:
+                slot[k]=None
+            
     if state == State.TERMINATION:
         flag = 0
 
@@ -155,15 +167,11 @@ def execute_state(
         flag = 1
 
     if turn > 6:  # TODO: check 1 -> 5?
-
         if state in (State.EXTRACTION_SOURCE, State.MUSIC_DISCUSSION):
             if turn>9:
                 flag=1
-
         else:
             print("over the defalut turn")
             flag = 1
-
-
 
     return response, flag, slot
