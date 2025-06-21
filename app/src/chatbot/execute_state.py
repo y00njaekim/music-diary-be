@@ -63,17 +63,17 @@ def execute_state(
     sid = sid.data[0]["session_id"]
 
 
-    #recreation시 slot 초기화Add commentMore actions
-    if state==State.MUSIC_CREATION:
-        if slot.get("individual_emotion")!=None:
-            music_making_keys=MusicMakingSlot.keys()
-            music_discussion_keys=MusicDiscussionSlot.keys()
+    #recreation시 slot 초기화 Add
+    if state==State.MUSIC_MAKING:
+        if "individual_emotion" in slot.keys():
+            music_making_keys=MusicMakingSlot.__annotations__.keys()
+            music_discussion_keys=MusicDiscussionSlot.__annotations__.keys()
 
             for k in music_making_keys:
                 slot[k]=None
             for k in music_discussion_keys:
                 slot[k]=None
-                
+
     if state == State.TERMINATION:
         flag = 0
 
@@ -165,14 +165,14 @@ def execute_state(
         print("all slot filled")
         flag = 1
 
-    if turn > 1:  # TODO: check 1 -> 5?
+    if turn > 6:  # TODO: check 1 -> 5?
 
         if state in (State.EXTRACTION_SOURCE, State.MUSIC_DISCUSSION):
-            if turn > 1:
+            if turn > 9:
                 flag = 1
 
         else:
-            print("over the defalut turn")
+            print("over the turn")
             flag = 1
 
     return response, flag, slot
