@@ -154,13 +154,14 @@ def execute_state(
         print("all slot filled")
         flag = 1
 
-    if turn > 1:  # TODO: check 1 -> 5?
+    if turn > 6:  # TODO: check 1 -> 5?
 
-        if state==State.EXTRACTION_SOURCE:
+        if state in (State.EXTRACTION_SOURCE, State.MUSIC_DISCUSSION):
             if turn>9:
                 flag=1
+
         else:
-            print("over the 5 turn")
+            print("over the defalut turn")
             flag = 1
 
 
