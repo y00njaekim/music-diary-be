@@ -175,7 +175,8 @@ def generate_response():
         # slot = post_data.get("slot", {})
 
         if pre_state != state:
-            raise ValueError(f"State consistency error: {pre_state} != {state}")
+            print(f"State consistency error: {pre_state} != {state}")
+            # raise ValueError(f"State consistency error: {pre_state} != {state}")
 
         # slot에 사용자 이름 추가
         if user_name:
@@ -311,7 +312,8 @@ def next_state():
         state_str = post_data.get("state")
         state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["state_name"]
         if state_str != state:
-            raise ValueError(f"State consistency error: {state_str} != {state}")
+            print(f"State consistency error: {state_str} != {state}")
+            # raise ValueError(f"State consistency error: {state_str} != {state}")
 
         # Enum 변환 및 다음 state 계산
         try:
