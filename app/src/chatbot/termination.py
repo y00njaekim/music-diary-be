@@ -6,12 +6,12 @@ from langchain_core.output_parsers import StrOutputParser
 def termination(total_dialogue: str, llm, pre_slot) -> str:
     termination_question="""
     [Termination Task]
-    - 사용자에게 오늘 즐거웠다고 말하며 끝냅니다.
-    - 질문이 아닌 잘가라는 인사를 진행합니다. 
-    Example:
-    - "오늘 정말 즐거운 시간이었습니다. 다음에 다시 만나요."
-    - "오늘 나눠주신 말씀 덕분에 유익한 시간되었습니다."
-    - "저는 항상 여기 있으니 언제든 찾아주세요."
+    - Thank the user for today and close the session warmly.
+    - Offer a farewell instead of asking another question.
+    Examples:
+    - "I truly enjoyed our time together today. Let's meet again soon."
+    - "Thank you for sharing; this was a meaningful time for me."
+    - "I will be right here whenever you would like to return."
     """
 
     question_prompt = PromptTemplate(template=termination_question)
@@ -20,24 +20,24 @@ def termination(total_dialogue: str, llm, pre_slot) -> str:
 
     history_summary_prompt="""
     [Dialogue Summary Task]
-    - 사용자와 챗봇의 대화기록을 보고 내용을 3~4줄로 요약하세요. 
-    - 사용자가 나눈 어려움, 음악 컨셉, 음악정보등을 중점적으로 요약하면 됩니다.
+    - Summarize the conversation in 3-4 sentences.
+    - Focus on the user's challenges, the musical concept, and key musical details.
 
-    Example: 
-    - “무기력함과 외로움”이라는 감정을 기반으로, “혼자 있는 나를 이해하고 위로하는” 주제의 가사와 음악을 창작했어요.
-    - “타인의 시선에 대한 불안”을 바탕으로, “있는 그대로의 나를 받아들이는” 내용의 창작물을 만들었어요.
-    - “반복되는 일상 속 공허함”이라는 어려움을 토대로, “작은 것에서 의미를 찾는” 주제로 가사와 음악을 완성했어요
-    [유의사항]
-    - 3~4줄로 요약하세요. (- < 포함하지 않고 줄글로)
-    - 문해력이 안좋은 청각장애인이 읽을 글이니 최대한 쉬운 단어를 사용하세요.
-    - 이 대화는 음악치료를 위해 음악을 만드는 과정에서 나온 대화입니다. 세션마다 반복되는 말 같은 것들은 생략하세요. 
+    Examples:
+    - Based on feelings of "lethargy and loneliness," we created lyrics and music about understanding and comforting the self who is alone.
+    - Grounded in the anxiety of "how others see me," we made a piece about accepting myself as I am.
+    - Inspired by the struggle of "emptiness in a repetitive routine," we composed lyrics and music about finding meaning in small things.
+    [Guidelines]
+    - Write 3-4 sentences (plain text, no bullet points).
+    - Use simple words so the summary is easy to read for someone with limited hearing and literacy.
+    - This conversation comes from a music-therapy songwriting session; skip repeated boilerplate statements between sessions.
 
     """
     summary_prompt = PromptTemplate(
         input_variables=["total_dialogue","pre_slot"],
         template=history_summary_prompt
         + "\n"
-        + "아래를 보고 참고하여 응답을 생성하세요."
+        + "Generate the response using the references below."
         + "Previous Slot: {pre_slot}\n"
         + "Chat history: {total_dialogue}\n"
     )
@@ -46,6 +46,6 @@ def termination(total_dialogue: str, llm, pre_slot) -> str:
     summary = summary_chain.invoke({"total_dialogue": total_dialogue,"pre_slot": pre_slot })
     
 
-    response=summary+'\n'+question+'\n'+'♫ 아래의 설문주소를 클릭하여 설문을 진행해주세요.♫'+'\n'+'https://docs.google.com/forms/u/0/d/1a_huYPVyQjLC-VOHZ5zzjpbayVjhuc55QAWg1tsFw6w/preview'
+    response = summary + '\n' + question + '\n' + 'Please complete the survey using the link below.' + '\n' + 'https://docs.google.com/forms/u/0/d/1a_huYPVyQjLC-VOHZ5zzjpbayVjhuc55QAWg1tsFw6w/preview'
     
     return response, summary

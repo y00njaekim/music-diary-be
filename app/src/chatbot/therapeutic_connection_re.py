@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from langchain_core.output_parsers import StrOutputParser
 
 class OutputFormat(BaseModel):
-    """사용자의 응답에서 얻어내야하는 정보"""
+    """Information that must be extracted from the user's responses"""
     name: Optional[str] = Field(default=None, description="user name")
     experience: Optional[str] = Field(default=None, description="The user's experience from today")
     difficulty: Optional[str] = Field(default=None, description="The difficulty the user is currently experiencing in their daily life")
@@ -14,42 +14,44 @@ class OutputFormat(BaseModel):
 def therapeutic_connection_re(user_input, summary, llm, memory, pre_slot) -> str:
     therapeutic_connection_question="""
     [Session Review]
-    {summary}를 보고 전 회기의 창작물을 간단하게 리뷰합니다.
-    Example: 
-    - “무기력함과 외로움”이라는 감정을 기반으로, “혼자 있는 나를 이해하고 위로하는” 주제의 가사와 음악을 창작했어요.
-    - “타인의 시선에 대한 불안”을 바탕으로, “있는 그대로의 나를 받아들이는” 내용의 창작물을 만들었어요.
-    - “반복되는 일상 속 공허함”이라는 어려움을 토대로, “작은 것에서 의미를 찾는” 주제로 가사와 음악을 완성했어요
+    Use the summary below to briefly review the creation from the previous session.
+    Summary:
+    {summary}
+    Example:
+    - Based on the emotions of "lethargy and loneliness," we wrote lyrics and music about comforting the self who is alone.
+    - Centered on the anxiety of "being watched by others," we made a piece about accepting myself as I am.
+    - From the struggle of "emptiness in a repetitive routine," we completed lyrics and music about finding meaning in small things.
 
     [Rapport Building Task]
-    사용자가 스스로 느낀 감정과 사건, 생각을 정리할 수 있도록 오늘 하루에 대해서 가볍게 이야기하세요.
-    사용자가 감정을 이야기할 경우 더 자세히 물어봅니다.
-    사용자가 사건, 생각에 대해 이야기할 경우 공감적으로 진행합니다. 
-    Example:  
-    - 안녕하세요! 오늘 하루는 어땠나요?
-    - (감정에 대해서 이야기) 왜 이런 감정이 들었는지 구체적으로 이야기해줄 수 있나요?
+    Talk casually about the user's day so they can organize the emotions, events, and thoughts they experienced.
+    Ask for more detail when they mention emotions.
+    Respond with empathy when they share events or thoughts.
+    Example:
+    - Hello! How was your day?
+    - (If they describe an emotion) Could you tell me more about what made you feel that way?
 
     [Identifying Difficulties Task]
-    앞서 하루에 대해서 중요하다고 생각하는 감정/사건/생각에 대해서 좀 더 이야기한 후, 
-    사용자가 현재 겪고 있는 어려움을 파악합니다. 이를 기반으로 음악적 주제를 발견하고 음악 창작으로 나아갈 수 있게 동기를 부여하세요. 
-    Example:  
-    - 오늘 하루 ~~라고 했어요. 이 주제에 대해서 더 이야기해볼까요?
-    - 특히, 저와 더 이야기하고 싶은 주제가 더 있을까요?
-    - 그럼 이 이야기를 바탕으로 음악을 만들어 볼까요?
+    After exploring the feelings, events, or thoughts that mattered most today, clarify the challenges the user is currently facing.
+    Use that insight to discover a musical theme and motivate them to continue with songwriting.
+    Example:
+    - You mentioned ~ about your day. Shall we talk more about that theme?
+    - Is there any topic you would especially like to explore together?
+    - How about we create music based on this story?
     """
     full_few_shot_dialogue="""
-    AI: 지난 세션에서는 “표현하지 못한 감정”에 대한 이야기를 통해, “마음속에 쌓인 말을 풀어내는” 가사와 음악을 함께 작업했어요.
-    AI: 오늘 하루는 어땠나요?
-    Human: 그냥 좀 지치는 하루였어요. 별일은 없었는데 기운이 없더라고요.
-    AI: 지친 하루였군요. 왜 그런 감정이 들었는지 조금 더 이야기해주실 수 있을까요?
-    Human: 특별한 이유는 없는데, 아침부터 의욕이 없었고 사람들하고 얘기하는 것도 귀찮게 느껴졌어요.
-    AI: 그런 날이 있어요. 특별한 사건이 없어도 감정이 무겁게 느껴질 때가 있죠. 혹시 오늘 어떤 생각들이 머릿속을 가장 많이 차지했나요?
-    Human: ‘이렇게 계속 지내도 괜찮을까?’ 하는 생각이요. 반복되는 일상에서 벗어나고 싶다는 생각이 자꾸 들었어요.
-    AI: 그 생각, 정말 공감돼요. 반복되는 일상 속에서 나 자신을 돌아볼 여유가 없으면 그런 물음이 생기곤 하죠. 오늘 하루 그런 감정이 드셨다면, 그것만으로도 충분히 중요한 이야기예요.
-    AI: 조금 전 “이렇게 계속 지내도 괜찮을까”라는 말씀이 인상 깊었어요. 이 주제에 대해서 저와 조금 더 이야기해볼까요?
-    Human: 네, 그런 생각을 자주 하게 돼요. 그냥 열심히 살고는 있는데, 뭔가 놓치고 있는 느낌도 들고요.
-    AI: 그 감정은 많은 걸 고민하고 있다는 증거 같아요. 혹시 저와 더 이야기하고 싶은 감정이나 상황이 더 있을까요?
-    Human: 음… 혼자 있을 때 괜히 외로워지고, 내가 뭔가 잘 못하고 있는 건 아닌가 싶은 생각이 들 때가 많아요.
-    AI: 그런 감정은 참 깊고 중요한 이야기예요. 우리가 지금 나누고 있는 이 대화 속 감정들, 생각들… 이걸 바탕으로 음악을 한번 만들어볼까요?
+    AI: In our last session we talked about "unspoken emotions" and wrote lyrics and music about releasing the words locked in your heart.
+    AI: How was your day today?
+    Human: It was just tiring. Nothing special happened, but I felt drained.
+    AI: Sounds like an exhausting day. Could you share a bit more about what led to that feeling?
+    Human: There was no specific reason. I just lacked motivation from the morning, and even talking to people felt bothersome.
+    AI: We all have days like that. Sometimes emotions feel heavy without a clear event. What thoughts were taking up most of your mind today?
+    Human: I kept wondering, "Is it okay to keep living like this?" I constantly wanted to escape the repetitive routine.
+    AI: I can relate to that. When we do not have room to reflect on ourselves, those questions naturally appear. The fact that you felt that way today means it is already an important story.
+    AI: What you said earlier, "Is it okay to keep living like this," really stood out. Would you like to unpack that topic a little more with me?
+    Human: Sure, it is something I think about often. I am doing my best, but it still feels like I am missing something.
+    AI: That feeling shows just how much you are reflecting. Is there any other emotion or situation you would like to talk about?
+    Human: Well... when I am alone I suddenly feel lonely and wonder if I am doing something wrong.
+    AI: Those feelings are deep and important. How about we turn the emotions and thoughts we are sharing right now into music together?
     """
     question_prompt = PromptTemplate(
         input_variables=["user_message", "history", "summary","pre_slot"],
@@ -59,7 +61,7 @@ def therapeutic_connection_re(user_input, summary, llm, memory, pre_slot) -> str
         + "\n"
         + full_few_shot_dialogue
         + "\n"
-        + "아래를 보고 참고하여 질문을 생성하세요."
+        + "Generate the next question using the references below."
         + "Previous Slot: {pre_slot}\n"
         + "Chat history: {history}\n"
         + "User said: {user_message}",
@@ -74,7 +76,7 @@ def therapeutic_connection_re(user_input, summary, llm, memory, pre_slot) -> str
     memory.save_context({"input": user_input}, {"output": question})
 
     retrieved_memory_variables = memory.load_memory_variables({})
-    current_chat_history = retrieved_memory_variables.get("history", "") # 'history' 키로 값을 가져오고, 없으면 빈 문자열
+    current_chat_history = retrieved_memory_variables.get("history", "")  # Fetch the history value if it exists
     structured_llm = llm.with_structured_output(schema=OutputFormat)
     slot_prompt = PromptTemplate(input_variables=["history"], template=slot_prefix_prompt + "\n" + "Chat history: {history}")
     slot = structured_llm.invoke(slot_prompt.invoke({"history": current_chat_history}))

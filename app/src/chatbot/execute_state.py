@@ -19,7 +19,7 @@ STATE_NEXT = {
     State.MUSIC_MAKING: State.MUSIC_CREATION,
     State.MUSIC_CREATION: State.MUSIC_DISCUSSION,
     State.MUSIC_DISCUSSION: State.TERMINATION,
-    State.TERMINATION: None,  # 마지막 상태
+    State.TERMINATION: None,  # final state
 }
 
 
@@ -34,7 +34,7 @@ def execute_state(
 ) -> Tuple[str, int, CombinedSlot]:
     flag = 0
 
-    # state지정
+    # Select the state handler
     if state == State.THERAPEUTIC_CONNECTION:
         if summary is None:
             func = therapeutic_connection
@@ -53,51 +53,50 @@ def execute_state(
     elif state == State.TERMINATION:
         func = termination
 
-    # JWT에서 추출한 사용자 정보
+    # User information extracted from the JWT
     jwt_user = request.jwt_user
     user_id = jwt_user["id"]
 
-    # 쿼리 파라미터에서 sid 추출 및 출력
+    # Retrieve sid from the query parameter
     front_sid = request.args.get("sid")
     sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
     sid = sid.data[0]["session_id"]
 
 
-    #recreation시 slot 초기화 Add
+    # Reset slots when re-entering the music-making phase
     if state==State.MUSIC_MAKING:
         if "individual_emotion" in slot.keys():
             music_making_keys=MusicMakingSlot.__annotations__.keys()
             music_discussion_keys=MusicDiscussionSlot.__annotations__.keys()
 
             for k in music_making_keys:
-                slot[k]=None
+                slot[k] = None
             for k in music_discussion_keys:
-                slot[k]=None
+                slot[k] = None
 
     if state == State.TERMINATION:
         flag = 0
 
         chat_records_response = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.ALL).data
         dialogue = ""
-        # 검색 결과가 있는지 확인합니다.
+        # Check whether any chat records were found
         if chat_records_response:
-            # 각 채팅 레코드(딕셔너리)를 순회합니다.
+            # Iterate through each chat record dictionary
             for record in chat_records_response:
-                # 각 레코드의 'text' 필드 값을 가져와 dialogue에 이어 붙입니다.
-                # record['text']는 해당 채팅 메시지의 내용을 담고 있습니다.
-                dialogue += record["text"] + "\n"  # 각 메시지 뒤에 줄바꿈을 추가하여 구분
+                # Append each record's text field to build the dialogue string
+                dialogue += record["text"] + "\n"
 
-            # 마지막에 추가된 불필요한 줄바꿈을 제거할 수도 있습니다.
+            # Remove the trailing newline that was added
             dialogue = dialogue.strip()
 
         else:
-            # 검색된 채팅 레코드가 없는 경우
-            print(f"세션 ID '{sid}'에 대한 채팅 기록이 없습니다.")
-            dialogue = ""  # 대화 기록이 없으면 빈 문자열로 설정
+            # No chat records were found
+            print(f"No chat history found for session '{sid}'.")
+            dialogue = ""  # Use an empty string when there is no dialogue
 
         response, summary = func(dialogue, llm, slot)
 
-        # summary db 저장
+        # Save the summary to the database
         latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["chat_id"]
         latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["keywords_id"]
         latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
@@ -108,7 +107,7 @@ def execute_state(
 
         return response, flag, slot
 
-    # 답변 생성
+    # Generate a response
     if turn == 0:
         if (state == State.THERAPEUTIC_CONNECTION) and (summary != None):
             response, state_slot = func(json.dumps(slot, ensure_ascii=False), summary, llm, memory, slot)
@@ -143,7 +142,7 @@ def execute_state(
         print(lyrics)
         _ = db_manager.insert_lyrics(sid, chat_id, lyrics)
 
-    # TODO: 노래 생성에 실패해도 그냥 다음 state로 넘어가???
+    # TODO: Should we advance to the next state even if song generation fails?
     if state == State.MUSIC_CREATION:
         flag = 1
         style_elems = []
@@ -153,15 +152,14 @@ def execute_state(
         style = ", ".join(style_elems)
         # title = slot['name']  # probably it is a username
 
-        # TODO: 항상 제일 마지막으로 저장된 lyrics가 음악 생성에 사용될 가사라는 가정이 깔리있음. 아닌 경우는 없는 지 확인 필요.
-        # => 제일 마지막으로 저장된 lyrics을 무조건적으로 사용한다는 시나리오로 가야할 것 같습니다.
+        # TODO: We assume the most recently saved lyrics are always used for music generation. Validate this assumption.
         lyrics_id = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
         url = response.split(":")[-1].strip()
         _ = db_manager.insert_music(lyrics_id, style, url, "").data[0]["music_id"]
 
-    # 다음 state로 넘어갈지 flag
+    # Decide whether to advance to the next state
     if none_fields == 0:
-        # 버튼뜨는 타이밍
+        # Trigger flow control when every slot is filled
         print("all slot filled")
         flag = 1
 
