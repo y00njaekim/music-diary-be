@@ -4,6 +4,12 @@
 
 ## 실행 방법
 
+### Python을 사용한 실행
+
+```bash
+ python -m uvicorn src.main:app --host 0.0.0.0 --port 5000
+```
+
 ### Docker Compose를 사용한 실행
 
 #### HTTP (80번 포트) 사용
