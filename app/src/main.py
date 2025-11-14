@@ -209,17 +209,13 @@ def generate_response():
             # 잘못된 state 값이 들어온 경우 에러 처리
             raise ValueError(f"알 수 없는 state 값입니다: {state}")
 
-        chat_summary = db_manager.search_latest_summary(user_id)
-        if chat_summary:
-            chat_summary = chat_summary.data["summary"]
-
         response, flag, updated_slot = execute_state(
             user_input=user_input,
             state=state_enum,
             turn=turn,
             slot=slot,
             memory=memory,
-            summary=chat_summary,
+            summary=None,
             db_manager=db_manager,
         )
 
@@ -294,26 +290,23 @@ def next_state():
 
         # 쿼리 파라미터에서 sid 추출 및 출력
         front_sid = request.args.get("sid")
-        sid = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+        diary_data = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
 
-        if not sid.data:
+        if not diary_data.data:
             raise ValueError("It seems like the session has been changed. Please check the session ID.")
-        sid = sid.data[0]["session_id"]
+        
+        sid = diary_data.data[0]["session_id"]
+        mode = diary_data.data[0].get("mode", "soulnote")
 
         post_data = request.get_json()
         if post_data is None:
             raise ValueError("JSON 데이터가 제공되지 않았습니다")
-
-        # JWT에서 추출한 사용자 정보
-        jwt_user = request.jwt_user
-        user_id = jwt_user["id"]
 
         # 현재 state만 추출
         state_str = post_data.get("state")
         state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["state_name"]
         if state_str != state:
             print(f"State consistency error: {state_str} != {state}")
-            # raise ValueError(f"State consistency error: {state_str} != {state}")
 
         # Enum 변환 및 다음 state 계산
         try:
@@ -321,8 +314,12 @@ def next_state():
         except ValueError:
             raise ValueError(f"알 수 없는 state: {state}")
 
-        next_state_enum = STATE_NEXT.get(current_state)
-        next_state_str = next_state_enum.value if next_state_enum else None
+        # chat-only 모드에서는 making_lyrics 이후 termination으로 바로 이동
+        if mode == "chat-only" and current_state == State.MAKING_LYRICS:
+            next_state_str = State.TERMINATION.value
+        else:
+            next_state_enum = STATE_NEXT.get(current_state)
+            next_state_str = next_state_enum.value if next_state_enum else None
 
         _ = db_manager.insert_state(sid, next_state_str)
         response_data = {"state": next_state_str, "turn": 0}
@@ -335,48 +332,6 @@ def next_state():
     except Exception as e:
         error_message = {"error": str(e), "traceback": traceback.format_exc()}
         print(f"Error: {json.dumps(error_message, indent=4)}")
-        return jsonify(error_message), 500
-
-
-@app.route("/library/summaries", methods=["GET"])
-@verify_jwt
-def get_summaries():
-    try:
-        jwt_user = request.jwt_user
-        user_id = jwt_user["id"]
-
-        summaries_res = db_manager.search_summaries_by_user(user_id)
-        return jsonify(summaries_res.data if summaries_res.data else []), 200
-
-    except Exception as e:
-        error_message = {"error": str(e), "traceback": traceback.format_exc()}
-        print(f"Error in /library/summaries: {json.dumps(error_message, indent=4)}")
-        return jsonify(error_message), 500
-
-
-@app.route("/library/summary/<summary_id>/music", methods=["GET"])
-@verify_jwt
-def get_music_details_for_summary(summary_id):
-    try:
-        jwt_user = request.jwt_user
-        user_id = jwt_user["id"]
-
-        music_details_res = db_manager.search_music_details_by_summary(summary_id, user_id)
-
-        if not music_details_res.data or not music_details_res.data.get("latest_music"):
-            return jsonify({"message": "해당 요약에 연결된 음악 정보가 없습니다."}), 404
-
-        latest_music = music_details_res.data["latest_music"]
-        music_vis_list = latest_music.get("musicVis", [])
-        vis_data = music_vis_list[0].get("vis_data") if music_vis_list else None
-
-        response_data = {"url": latest_music.get("url"), "vis_data": vis_data}
-
-        return jsonify(response_data), 200
-
-    except Exception as e:
-        error_message = {"error": str(e), "traceback": traceback.format_exc()}
-        print(f"Error in /library/summary/{summary_id}/music: {json.dumps(error_message, indent=4)}")
         return jsonify(error_message), 500
 
 
@@ -512,22 +467,91 @@ def start_session():
         jwt_user = request.jwt_user
         user_id = jwt_user["id"]
 
+        # 모드 추출 및 검증
+        post_data = request.get_json() or {}
+        mode = post_data.get("mode", "soulnote")
+        
+        # 허용된 모드 검증
+        allowed_modes = ["chat-only", "song-only", "soulnote", "journaling"]
+        if mode not in allowed_modes:
+            mode = "soulnote"
+
         # 세션 ID 생성
-        response = db_manager.insert_diary(user_id)
+        response = db_manager.insert_diary(user_id, mode)
         session_id = response.data[0]["session_id"]
         db_manager.insert_state(session_id, State.THERAPEUTIC_CONNECTION.value)
         db_manager.insert_keywords(session_id, {})
-        # session_id = str(uuid.uuid4())
 
         # 사용자별 세션 저장소에 저장 (선택적)
         if user_id not in user_memories:
             user_memories[user_id] = ConversationSummaryMemory(llm=llm, memory_key="history", return_messages=True)
 
-        return jsonify({"sid": session_id, "user_id": user_id}), 200
+        return jsonify({"sid": session_id, "user_id": user_id, "mode": mode}), 200
 
     except Exception as e:
         error_message = {"error": str(e), "traceback": traceback.format_exc()}
         print(f"Error in /session/start: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
+@app.route("/song-only/generate", methods=["POST"])
+@verify_jwt
+def song_only_generate():
+    """song-only 모드 전용 음악 생성 API"""
+    try:
+        from chatbot.music_creation import generate_mureka_song_and_wait
+        
+        # JWT에서 추출한 사용자 정보
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        # 쿼리 파라미터에서 sid 추출
+        front_sid = request.args.get("sid")
+        diary_data = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+
+        if not diary_data.data:
+            raise ValueError("세션을 찾을 수 없습니다.")
+        
+        sid = diary_data.data[0]["session_id"]
+        mode = diary_data.data[0].get("mode", "soulnote")
+
+        if mode != "song-only":
+            return jsonify({"error": "이 API는 song-only 모드에서만 사용할 수 있습니다."}), 400
+
+        post_data = request.get_json()
+        if not post_data:
+            return jsonify({"error": "JSON 데이터가 제공되지 않았습니다"}), 400
+
+        lyrics = post_data.get("lyrics", "")
+        style_prompt = post_data.get("style_prompt", "")
+
+        if not lyrics:
+            return jsonify({"error": "가사가 필요합니다"}), 400
+
+        # 가사 저장
+        lyrics_res = db_manager.insert_lyrics(sid, None, lyrics)
+        lyrics_id = lyrics_res.data[0]["lyrics_id"]
+
+        # MuReka API 호출하여 음악 생성
+        title = "Untitled Song"
+        music_url = generate_mureka_song_and_wait(title, lyrics, style_prompt)
+
+        if not music_url.startswith("http"):
+            return jsonify({"error": f"음악 생성 실패: {music_url}"}), 500
+
+        # 음악 정보 저장
+        music_res = db_manager.insert_music(lyrics_id, style_prompt, music_url, title)
+        music_id = music_res.data[0]["music_id"]
+
+        return jsonify({
+            "music_url": music_url,
+            "lyrics_id": lyrics_id,
+            "music_id": music_id
+        }), 200
+
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /song-only/generate: {json.dumps(error_message, indent=4)}")
         return jsonify(error_message), 500
 
 

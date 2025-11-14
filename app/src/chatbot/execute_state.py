@@ -95,16 +95,7 @@ def execute_state(
             print(f"세션 ID '{sid}'에 대한 채팅 기록이 없습니다.")
             dialogue = ""  # 대화 기록이 없으면 빈 문자열로 설정
 
-        response, summary = func(dialogue, llm, slot)
-
-        # summary db 저장
-        latest_chat = db_manager.search("chat", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["chat_id"]
-        latest_keywords = db_manager.search("keywords", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["keywords_id"]
-        latest_lyrics = db_manager.search("lyrics", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["lyrics_id"]
-        latest_music = db_manager.search("music", "lyrics_id", latest_lyrics, SEARCH_OPTION.LATEST.value).data[0]["music_id"]
-        latest_state = db_manager.search("state", "session_id", sid, SEARCH_OPTION.LATEST.value).data[0]["state_id"]
-
-        db_manager.insert_summary(sid, summary, latest_chat, latest_music, latest_state, latest_keywords)
+        response, _summary = func(dialogue, llm, slot)
 
         return response, flag, slot
 

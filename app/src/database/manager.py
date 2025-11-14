@@ -50,8 +50,8 @@ class DBManager:
 
         return query.execute()
 
-    def insert_diary(self, user_id: str):
-        return self._insert("diary", {"user_id": user_id})
+    def insert_diary(self, user_id: str, mode: str = "soulnote"):
+        return self._insert("diary", {"user_id": user_id, "mode": mode})
 
     def insert_chat(self, session_id: str, text: str, user_say: bool):
         return self._insert("chat", {"session_id": session_id, "text": text, "user_says": user_say})
@@ -83,65 +83,6 @@ class DBManager:
 
     def insert_music_vis(self, music_id: str, vis_data: dict):
         return self._insert("musicVis", {"music_id": music_id, "vis_data": vis_data})
-
-    def insert_summary(self, session_id: str, summary: str, latest_chat: str, latest_music: Optional[str], latest_state: str, latest_keywords: str):
-        return self._insert(
-            "summary",
-            {
-                "session_id": session_id,
-                "summary": summary,
-                "latest_chat": latest_chat,
-                "latest_music": latest_music,
-                "latest_state": latest_state,
-                "latest_keywords": latest_keywords,
-            },
-        )
-
-    def search_latest_summary(self, user_id: str):
-        """
-        user_id를 기반으로 가장 최근의 요약(summary)을 가져옵니다.
-        summary와 diary 테이블을 inner join하여 조회합니다.
-        """
-        return (
-            self.supabase.table("summary")
-            .select("summary, diary!inner(*)")
-            .eq("diary.user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .maybe_single()
-            .execute()
-        )
-
-    def search_summaries_by_user(self, user_id: str):
-        """
-        user_id를 기반으로 모든 요약(summary)을 가져옵니다.
-        summary와 diary 테이블을 inner join하여 조회합니다.
-        """
-        # `summary` 테이블에서 `summary_id`, `summary`, `created_at`를 선택하고,
-        # `diary` 테이블과 내부 조인하여 `user_id`로 필터링합니다.
-        # 생성일(`created_at`)을 기준으로 내림차순 정렬합니다.
-        response = (
-            self.supabase.table("summary")
-            .select("summary_id, summary, created_at, diary!inner(user_id)")
-            .eq("diary.user_id", user_id)
-            .order("created_at", desc=True)
-            .execute()
-        )
-        return response
-
-    def search_music_details_by_summary(self, summary_id: str, user_id: str):
-        """
-        summary_id와 user_id를 기반으로 연결된 음악(music)과 시각화 데이터(musicVis)를 가져옵니다.
-        """
-        response = (
-            self.supabase.table("summary")
-            .select("latest_music(url, musicVis(vis_data)), diary!inner(user_id)")
-            .eq("summary_id", summary_id)
-            .eq("diary.user_id", user_id)
-            .single()
-            .execute()
-        )
-        return response
 
     def search(self, table: str, reference: str, ref_id: str, search_option: str, **kwargs: dict):
         """
