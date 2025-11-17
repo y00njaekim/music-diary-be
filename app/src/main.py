@@ -494,6 +494,52 @@ def start_session():
         return jsonify(error_message), 500
 
 
+@app.route("/journaling/submit", methods=["POST"])
+@verify_jwt
+def submit_journaling_entry():
+    try:
+        jwt_user = request.jwt_user
+        user_id = jwt_user["id"]
+
+        post_data = request.get_json()
+        if post_data is None:
+            raise ValueError("JSON 데이터가 제공되지 않았습니다")
+
+        front_sid = post_data.get("sid")
+        entry = (post_data.get("entry") or "").strip()
+
+        if not front_sid:
+            raise ValueError("sid가 필요합니다")
+        if not entry:
+            raise ValueError("entry가 필요합니다")
+        if len(entry) < 20:
+            raise ValueError("entry는 20자 이상 입력해야 합니다")
+        if len(entry) > 10000:
+            raise ValueError("entry는 10000자 이하여야 합니다")
+
+        diary_res = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
+        if not diary_res.data:
+            raise ValueError("해당 세션을 찾을 수 없거나 권한이 없습니다")
+
+        diary_row = diary_res.data[0]
+        session_id = diary_row["session_id"]
+        mode = diary_row.get("mode", "soulnote")
+
+        if mode != "journaling":
+            raise ValueError("해당 세션은 저널링 모드가 아닙니다")
+
+        db_manager.insert_chat(session_id, entry, True)
+
+        return jsonify({"status": "ok", "sid": session_id}), 200
+
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        error_message = {"error": str(e), "traceback": traceback.format_exc()}
+        print(f"Error in /journaling/submit: {json.dumps(error_message, indent=4)}")
+        return jsonify(error_message), 500
+
+
 @app.route("/song-only/generate", methods=["POST"])
 @verify_jwt
 def song_only_generate():
