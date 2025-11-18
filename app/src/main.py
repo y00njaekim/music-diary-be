@@ -507,6 +507,7 @@ def submit_journaling_entry():
 
         front_sid = post_data.get("sid")
         entry = (post_data.get("entry") or "").strip()
+        lyrics = (post_data.get("lyrics") or "").strip()
 
         if not front_sid:
             raise ValueError("sid가 필요합니다")
@@ -516,6 +517,10 @@ def submit_journaling_entry():
             raise ValueError("entry는 20자 이상 입력해야 합니다")
         if len(entry) > 10000:
             raise ValueError("entry는 10000자 이하여야 합니다")
+        if not lyrics:
+            raise ValueError("lyrics가 필요합니다")
+        if len(lyrics) > 5000:
+            raise ValueError("lyrics는 5000자 이하여야 합니다")
 
         diary_res = db_manager.search("diary", "user_id", user_id, SEARCH_OPTION.ID.value, id=front_sid)
         if not diary_res.data:
@@ -529,6 +534,7 @@ def submit_journaling_entry():
             raise ValueError("해당 세션은 저널링 모드가 아닙니다")
 
         db_manager.insert_chat(session_id, entry, True)
+        db_manager.insert_lyrics(session_id, None, lyrics)
 
         return jsonify({"status": "ok", "sid": session_id}), 200
 
